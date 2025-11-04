@@ -30,10 +30,10 @@ import xlrd
 
 # Constants
 P_amb = 101325  # Ambient pressure [Pa]
-Noz_type = "cyl"  # Either tapered or cylindrical
-alpha = 26  # Number of nozzles
-debug_mode = True
-graph_mode = 'S'  # Plotting mode
+Noz_type = "tapered"  # Either tapered or cylindrical
+alpha = 36  # Number of nozzles
+debug_mode = False
+graph_mode = 'P'  # Plotting mode
 #     P = Pressure vs. Speed
 #     V = Viscosity vs. Shear rate
 #     S = Printing Speed vs. nozzle ID number
@@ -44,10 +44,10 @@ graph_mode = 'S'  # Plotting mode
 D = np.zeros((3, alpha))
 
 # For 26 cylindrical Multinozzle
-D[0, :] = np.array([0.257193333, 0.25623, 0.25612, 0.256406667, 0.25561, 0.25561, 0.25612, 0.255536667, 0.255376667,
-                    0.25357, 0.25459, 0.25561, 0.2551, 0.25663, 0.25459, 0.2551, 0.25255, 0.25408, 0.25357, 0.25459,
-                    0.25816, 0.25459, 0.25663, 0.25765, 0.25714, 0.25459])
-# D[0, :] = np.ones(alpha) * 0.250
+# D[0, :] = np.array([0.257193333, 0.25623, 0.25612, 0.256406667, 0.25561, 0.25561, 0.25612, 0.255536667, 0.255376667,
+#                     0.25357, 0.25459, 0.25561, 0.2551, 0.25663, 0.25459, 0.2551, 0.25255, 0.25408, 0.25357, 0.25459,
+#                     0.25816, 0.25459, 0.25663, 0.25765, 0.25714, 0.25459])
+D[0, :] = np.ones(alpha) * 0.450 #0.250
 D[1, :] = np.ones(alpha) * 0.001  # Error on the nozzle diameters
 D[2, :] = np.ones(alpha) * 3.55
 
@@ -65,6 +65,7 @@ D_avg = np.array([np.mean(D[0, :]), np.mean(D[1, :])]
 if Noz_type == "tapered":
     L = np.array([17.25, 0.01])  # Nozzle length and error
 else:
+
     L = np.array([6.5, 0.01])  # Nozzle length and error
 
 # theta is the half-cone angle of the nozzle
@@ -72,7 +73,7 @@ angle = 5.3  # deg
 theta = math.radians(angle)  # rad
 
 # Desired printing speed [mm/s]
-v = np.array([50, 100, 150, 200, 250])
+v = np.array([3920, 3930, 3940, 3950, 3960])
 
 
 def open_material_file():
