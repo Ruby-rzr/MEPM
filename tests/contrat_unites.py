@@ -119,22 +119,30 @@ def facteur_du_champ(champ, nom_correspondance):
     return FACTEUR_PAR_GRANDEUR[grandeur_du_champ(champ, nom_correspondance)]
 
 
-# Justification des NON_DECLARABLE, defaut #20.
+# Justification des NON_DECLARABLE.
 #
-# calculateReqError additionne sous une meme racine trois termes de dimensions
-# differentes. Il en resulte que dRi ne porte pas la dimension de Ri, et que
-# dP = sqrt((ReqError Q_eq)^2 + (R_eq sum dQ)^2) combine deux termes qui ne se
-# mettent pas a la meme echelle. Facteurs mesures, s = 1e-3 :
+# Avant la correction du defaut #20, calculateReqError additionnait sous une
+# meme racine trois termes de dimensions differentes, et delta_Ri portait la
+# dimension de Ri^2 fois une longueur. La propagation est desormais homogene
+# par construction, delta_Ri = Ri * incertitude_relative.
 #
-#   grandeur dRi   cylindrique        s^-5        = 1e+15
-#                  conique analytique s^(1-6n)    = 10^(18n-3)
-#                  conique empirique  s^1         = 1e-03
+# Ces deux grandeurs restent neanmoins non declarables, pour deux raisons
+# distinctes et toutes deux anterieures :
 #
-#   grandeur dP    cylindrique        A ~ s^-2 domine  = 1e+06
-#                  conique analytique A ~ s^(4-6n) domine = 10^(18n-12)
-#                  conique empirique  A ~ s^4 et B ~ s^3 sont COMPARABLES,
-#                                     le rapport depend du cas et de la
-#                                     vitesse : aucun facteur n'existe.
+#   dRi  suit la dimension de Ri, laquelle depend de la branche (defaut #2) :
+#        Pa.s/m^3 en cylindrique, Pa/(m^3/s)^n en conique analytique,
+#        indeterminee en conique empirique. Il n'existe donc pas un facteur
+#        unique, et ce n'est pas un defaut de la propagation.
+#
+#   dP   vaut sqrt((delta_R_eq Q_eq)^2 + (R_eq somme dQ)^2). En cylindrique
+#        les deux termes sont des Pa et le facteur vaut 1. En conique, le
+#        produit R_eq Q_eq n'est pas une pression, la pression valant
+#        R_eq Q_eq^n : la propagation cylindrique est appliquee a une
+#        resistance d'une autre dimension. C'est le defaut #12, qui sera
+#        ferme en phase 7 avec la reecriture de la branche conique.
+#
+# Sans consequence pratique depuis la phase 4 : toutes les comparaisons
+# ulterieures se font entre references SI, ou tous les facteurs valent 1.
 
 # Budget d'ecart accorde a la phase 4, et a elle seule. Voir CLAUDE.md.
 BUDGET_ULP_PHASE_4 = 32

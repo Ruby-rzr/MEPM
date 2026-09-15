@@ -11,13 +11,22 @@ Ils documentent deux defauts du diagnostic :
   #11 en buse conique, la resistance n'utilise que K et n, jamais eta. Pour un
       materiau dont K vaut zero (newtonien, Carreau, Bingham), Ri vaut zero et
       la pression calculee se reduit a P_amb.
-  #12 calculateReqError applique la formule cylindrique quelle que soit la
-      geometrie. Avec Ri nul, elle divise par zero, d'ou les deux
-      avertissements par appel.
+  #12 calculateReqError applique la propagation cylindrique quelle que soit la
+      geometrie. Avec Ri nul, le rapport dRi/Ri^2 vaut zero sur zero, d'ou
+      l'avertissement.
 
-Quand la phase 7 corrigera Ri = 0 en conique, le compte changera et ce test se
-declenchera. C'est voulu : il obligera a constater le changement plutot qu'a
-le subir.
+MISE A JOUR APRES LA CORRECTION DU DEFAUT #20. Le compte a change et ce test
+s'est declenche, comme prevu. Avant correction : 608 occurrences, deux
+signatures, une division par zero et une valeur invalide, emises dans une
+boucle sur les buses. Apres : 76 occurrences, une seule signature, la boucle
+ayant ete remplacee par un calcul vectorise et la division par zero ayant
+disparu de l'expression de dRi. Les 19 cas emetteurs sont EXACTEMENT LES
+MEMES, ce qui confirme que la cause n'a pas bouge : Ri vaut zero en conique
+des que K vaut zero.
+
+Quand la phase 7 corrigera Ri = 0 en conique, le compte changera de nouveau et
+ce test se declenchera. C'est voulu : il oblige a constater le changement
+plutot qu'a le subir.
 
 Le test n'assert pas les numeros de ligne, qui bougeraient au moindre
 reformatage. Il assert la categorie, le fichier et le message.
@@ -43,9 +52,7 @@ from tests.reference_io import execute                 # noqa: E402
 # Signatures attendues : (categorie, fichier, message).
 SIGNATURES_ATTENDUES = {
     ("RuntimeWarning", "calculateReqError.py",
-     "divide by zero encountered in divide"): 304,
-    ("RuntimeWarning", "calculateReqError.py",
-     "invalid value encountered in scalar divide"): 304,
+     "invalid value encountered in divide"): 76,
 }
 
 # Les 19 cas concernes sont tous coniques, avec K = 0 et R = 0, donc Ri = 0.
@@ -57,7 +64,7 @@ CAS_ATTENDUS = {
     for mode in ("analytique", "mP_seul_aberrant")
 } | {"A|newtonien_synthetique|tapered|heterogene|analytique"}
 
-OCCURRENCES_PAR_CAS = 32
+OCCURRENCES_PAR_CAS = 4
 
 
 @pytest.fixture(scope="module")
@@ -100,11 +107,11 @@ def test_signatures_et_comptes(avertissements_captures):
         "\nLes avertissements emis ont change.\n"
         f"  obtenu  : {dict(total)}\n"
         f"  attendu : {SIGNATURES_ATTENDUES}")
-    assert sum(total.values()) == 608
+    assert sum(total.values()) == 76
 
 
 def test_occurrences_par_cas(avertissements_captures):
-    """Chaque cas emetteur emet 32 occurrences, 16 par signature."""
+    """Chaque cas emetteur emet 4 occurrences, une par vitesse."""
     par_cas, _ = avertissements_captures
     anomalies = [f"{identifiant} : {sum(sig.values())}"
                  for identifiant, sig in par_cas.items()
