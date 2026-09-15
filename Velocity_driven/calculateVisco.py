@@ -1,5 +1,30 @@
 import numpy as np
 
+# ---------------------------------------------------------------------------
+# Incertitudes supposees sur les parametres rheologiques.
+#
+# Ces valeurs ne sont derivees d'aucune equation physique : ce sont des
+# incertitudes de mesure supposees, presentes en dur dans le code d'origine et
+# reprises ici a l'identique. Elles violent la regle 5 de CLAUDE.md, qui
+# interdit toute valeur numerique en dur dans le code de calcul : elles
+# devraient venir de la base de materiaux, par materiau. Les nommer et les
+# remonter ici est la premiere etape, leur deplacement vers materials.xls et
+# leur signalement a l'execution, exiges par la regle 3, restent a faire.
+#
+# LEURS VALEURS NE SONT PAS MODIFIEES. Elles n'interviennent que dans le
+# calcul des incertitudes deta, jamais dans eta, donc jamais dans la pression.
+#
+# Unites : celles des grandeurs auxquelles elles se rapportent.
+INCERTITUDE_K = 0.1           # sur l'indice de consistance K. [Pa.s^n]
+INCERTITUDE_N = 0.0001        # sur l'indice d'ecoulement n. [-]
+INCERTITUDE_SR = 0.0001       # sur le taux de cisaillement. [1/s]
+INCERTITUDE_ETA_INF = 0       # sur la viscosite infinie. [Pa.s]
+INCERTITUDE_ETA_0 = 0         # sur la viscosite au repos. [Pa.s]
+INCERTITUDE_LAMBDA = 0        # sur le temps de relaxation. [s]
+INCERTITUDE_A = 0             # sur l'exposant du modele de Carreau. [-]
+INCERTITUDE_TAU_0 = 0         # sur le seuil d'ecoulement. [Pa]
+
+
 def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, dSR=None):
     """
     calculateVisco is the function used to obtain the apparent viscosity inside every nozzle, depending on the material's behavior law.
@@ -23,14 +48,18 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
         Author: David Brzeski, Jean-François Chauvette, Raphaël Plante
             %Date: June 13, 2020 - February 13, 2024
     """
-    dK = 0.1
-    dn = 0.0001
-    dSR = 0.0001
-    deta_inf = 0
-    deta_0 = 0
-    dlambda = 0
-    da = 0
-    dtau_0 = 0
+    dK = INCERTITUDE_K
+    dn = INCERTITUDE_N
+    # ATTENTION, defaut #14 : cette ligne ECRASE l'argument dSR recu par la
+    # fonction, donc l'incertitude propagee depuis calculateSR est perdue.
+    # Comportement conserve tel quel ici, sa correction change des nombres et
+    # releve d'une phase ulterieure.
+    dSR = INCERTITUDE_SR
+    deta_inf = INCERTITUDE_ETA_INF
+    deta_0 = INCERTITUDE_ETA_0
+    dlambda = INCERTITUDE_LAMBDA
+    da = INCERTITUDE_A
+    dtau_0 = INCERTITUDE_TAU_0
 
     # Ensure SR does not contain zero to avoid log(0) issues
     if np.any(SR == 0):
