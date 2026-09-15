@@ -69,8 +69,19 @@ def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
 
                 # Ri = (2*K*(De**(3*n)-Do**(3*n))/(3*n*np.tan(theta)
                 #                                  )) * (((32)/(np.pi * Do**3 * De**3))**n)
-                Ri = ((4*K*L[0])/(3*n*(Do-De))) * ((3*n+1)/(n*np.pi)
-                                                   ** n) * ((De/2)**(-3*n)-(Do/2)**(-3*n))
+                #
+                # DEFAUT #8, corrige en phase 5. L'ecriture precedente etait
+                #     ((3*n+1)/(n*np.pi)
+                #                       ** n)
+                # ou la coupure de ligne masquait que l'exposant n se liait au
+                # seul denominateur (n*pi) et non a la fraction entiere. Le
+                # code calculait (3n+1)/(n pi)^n au lieu de ((3n+1)/(n pi))^n,
+                # soit un facteur parasite (3n+1)^(1-n), valant 1.59 pour
+                # n = 0.49 et 1 pour n = 1. Les parentheses sont desormais
+                # explicites et le terme tient sur une seule ligne.
+                terme_debit = ((3*n + 1) / (n*np.pi)) ** n
+                Ri = ((4*K*L[0]) / (3*n*(Do - De))) * terme_debit \
+                    * ((De/2)**(-3*n) - (Do/2)**(-3*n))
 
                 # Calculate equivalent hydraulic resistance for nozzles in parallel
 

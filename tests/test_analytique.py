@@ -275,26 +275,28 @@ def detecte_plateau(rapports):
 N_CONIQUES = [0.31, 0.49, 0.8]
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="defaut #8 : priorite d'operateurs dans "
-                          "calculateReq, le conique analytique est entache "
-                          "d'un facteur (3n+1)^(1-n)")
 @pytest.mark.parametrize("n, K", [(0.31, 4363.0), (0.49, 3280.0), (0.8, 120.0)])
 def test_T5_continuite_conique_vers_cylindrique(n, K):
-    """Quand l'angle tend vers zero, le conique doit rejoindre le cylindrique.
+    """Quand l'angle tend vers zero, le conique rejoint le cylindrique.
 
     A longueur et diametre de sortie fixes, on fait tendre Do vers De et on
     compare au resultat cylindrique. Le rapport attendu est 1, et c'est la
     VALEUR du rapport qui est testee, pas la seule convergence.
 
-    ECHEC ATTENDU. Le rapport atteint un plateau a (3n+1)^(1-n), soit environ
-    1.57 a 1.28 selon n, a cause du defaut #8 : dans calculateReq, l'ecriture
+    CE TEST A ECHOUE DE LA PHASE 3 A LA PHASE 5, volontairement, sous
+    xfail(strict=True). Il revelait le defaut #8 : dans calculateReq,
+    l'ecriture
 
         ((3*n+1)/(n*np.pi)
                           ** n)
 
-    lie l'exposant n au seul denominateur (n*pi) et non a la fraction entiere.
-    Le code calcule (3n+1)/(n pi)^n au lieu de ((3n+1)/(n pi))^n.
+    liait l'exposant n au seul denominateur (n*pi) et non a la fraction
+    entiere. Le code calculait (3n+1)/(n pi)^n au lieu de ((3n+1)/(n pi))^n,
+    soit un facteur parasite (3n+1)^(1-n). Le rapport plafonnait a 1.57 pour
+    n = 0.31, 1.59 pour n = 0.49 et 1.28 pour n = 0.8.
+
+    Le defaut est corrige depuis. Le marqueur xfail a ete leve dans le meme
+    commit que la correction, et ce test doit desormais passer.
     """
     rapports = rapports_conique_sur_cylindrique(n, K)
     plateau = detecte_plateau(rapports)
@@ -319,24 +321,24 @@ GEOMETRIES_BALAYEES = [(De, L, v)
 
 
 @pytest.mark.parametrize("n, K", [(0.31, 4363.0), (0.49, 3280.0), (0.8, 120.0)])
-def test_T5bis_le_rapport_ne_depend_que_de_n(n, K):
-    """Le rapport conique sur cylindrique vaut (3n+1)^(1-n) et ne depend que de n.
+def test_T5bis_le_rapport_ne_depend_de_rien(n, K):
+    """Le rapport conique sur cylindrique vaut 1, pour toute geometrie et tout debit.
 
-    Ce test ne valide rien physiquement. Il epingle quantitativement le
-    defaut #8 : tant qu'il passe, l'ecart observe est entierement explique par
-    la priorite d'operateurs, et par rien d'autre.
+    Avant la correction du defaut #8, ce test s'appelait
+    test_T5bis_le_rapport_ne_depend_que_de_n et verifiait que le rapport valait
+    (3n+1)^(1-n). Cette independance vis-a-vis de v, De et L etait le point qui
+    distinguait une ERREUR D'ECRITURE d'une ERREUR DE DERIVATION : une formule
+    mal derivee aurait en general laisse une dependance residuelle en geometrie
+    ou en debit. Il n'y en avait aucune, ce qui a permis d'affirmer que le
+    defaut etait bien une priorite d'operateurs et rien d'autre.
 
-    L'independance vis-a-vis de v, De et L est le point qui distingue une
-    ERREUR D'ECRITURE d'une ERREUR DE DERIVATION. Une formule mal derivee
-    laisserait en general une dependance residuelle en geometrie ou en debit.
-    Ici le rapport est rigoureusement constant sur les 27 combinaisons
-    balayees, a la dispersion du plateau pres.
-
-    Quand le defaut sera corrige, ce test echouera, ce qui obligera a
-    constater la correction plutot qu'a la subir. Il sera retourne en meme
-    temps que le xfail de test_T5 sera leve, en phase 7, pas avant.
+    Depuis la correction, le rapport ne depend plus de n non plus : il vaut 1
+    sur les 27 combinaisons de De, L et v balayees, pour chaque n. Le test est
+    conserve sous cette forme renforcee, il garantit desormais que la
+    continuite conique vers cylindrique est exacte partout et pas seulement au
+    point teste par test_T5.
     """
-    attendu = (3 * n + 1) ** (1 - n)
+    attendu = 1.0
     observes = {}
     for De, L, v in GEOMETRIES_BALAYEES:
         plateau = detecte_plateau(
@@ -350,7 +352,9 @@ def test_T5bis_le_rapport_ne_depend_que_de_n(n, K):
         cle: valeur for cle, valeur in observes.items()
         if abs(valeur - attendu) / attendu > TOLERANCE_PLATEAU}
     assert not hors_tolerance, (
-        f"\nn = {n} : (3n+1)^(1-n) = {attendu!r}\n  " + "\n  ".join(
+        f"\nn = {n} : rapport attendu {attendu!r}, "
+        f"(3n+1)^(1-n) valait {(3 * n + 1) ** (1 - n)!r} avant la correction "
+        f"du defaut #8\n  " + "\n  ".join(
             f"De={De} L={L} v={v} : {valeur!r}, ecart "
             f"{abs(valeur - attendu) / attendu:.3e}"
             for (De, L, v), valeur in sorted(hors_tolerance.items())))
@@ -365,12 +369,13 @@ def test_T5bis_le_rapport_ne_depend_que_de_n(n, K):
 
 
 def test_T5ter_continuite_conique_exacte_pour_n_egal_1():
-    """Pour n = 1, le facteur parasite vaut 1 et la continuite est exacte.
+    """Pour n = 1, la continuite conique vers cylindrique est exacte.
 
-    (3n+1)^(1-n) vaut 1 quand n vaut 1. C'est la demonstration que le
-    defaut #8 depend de n : un test purement newtonien ne l'aurait jamais
-    detecte. Ce test passe aujourd'hui et doit continuer a passer apres la
-    correction.
+    Ce test passait DEJA avant la correction du defaut #8, parce que le
+    facteur parasite (3n+1)^(1-n) vaut exactement 1 quand n vaut 1. C'etait la
+    demonstration que le defaut dependait de n, et donc qu'un test purement
+    newtonien ne l'aurait jamais detecte. Il est conserve a ce titre : il
+    documente pourquoi le defaut a pu survivre si longtemps.
     """
     plateau = detecte_plateau(rapports_conique_sur_cylindrique(1.0, 100.0))
     assert plateau is not None

@@ -156,8 +156,13 @@ marqueur en connaissance de cause.
 | T2 | passe | loi de puissance cylindrique égale `4LK gamma_w^n/D`, garde-fou du double facteur de Rabinowitsch |
 | T3 | passe | exposants d'échelle sur L, K, Q et D |
 | T4 | passe | annulation des alpha pour des buses identiques |
-| T5 | **xfail** | continuité conique vers cylindrique, défaut #8 |
+| T5 | passe | continuité conique vers cylindrique, a échoué en xfail de la phase 3 à la phase 5, défaut #8 corrigé |
+| T5bis | passe | le rapport conique sur cylindrique vaut 1 sur 27 combinaisons de De, L et v |
+| T5ter | passe | continuité exacte pour n = 1, documente pourquoi le défaut #8 a pu survivre |
 | T6 | passe | continuité du seuil quand tau_0 tend vers zéro, ne valide rien pour tau_0 supérieur à zéro |
+
+Aucun test n'est actuellement en `xfail`. Les trois qui l'étaient ont été
+retournés en même temps que la correction du défaut #8.
 
 `tests/test_avertissements.py` fige de la même façon les `RuntimeWarning` émis
 à l'exécution, qui documentent les défauts #11 et #12.
