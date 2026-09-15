@@ -78,20 +78,3 @@ def readMaterial(file, sheet):
 
     return rho, w, f, n, k, eta_inf, eta_0, tau_0, lmbda, a, mP, R
 
-
-"""# Example usage:
-file = "material_database.xlsx"
-sheet = "material"
-
-rho, w, f, n, k, eta_inf, eta_0, tau_0, lmbda, a = read_material(file, sheet)
-print("rho:", rho)
-print("w:", w)
-print("f:", f)
-print("n:", n)
-print("k:", k)
-print("eta_inf:", eta_inf)
-print("eta_0:", eta_0)
-print("tau_0:", tau_0)
-print("lambda:", lmbda)
-print("a:", a)
-"""

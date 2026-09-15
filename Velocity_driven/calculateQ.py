@@ -26,7 +26,6 @@ def calculateQ(D, v, Noz_type):
     # Ensure inputs are valid
     if D.ndim != 2:
         raise ValueError("Input array D must be 2-dimensional")
-    # and isinstance(v, (int, float))):
     if not (isinstance(D, (list, np.ndarray))):
         raise ValueError("Inputs D and v must be numeric or array-like.")
 
@@ -39,24 +38,21 @@ def calculateQ(D, v, Noz_type):
     Q = np.empty(alpha)
     dQ = np.empty(alpha)
 
+    # Le debit par buse et son incertitude ne dependent pas de la geometrie de
+    # la buse : seul le diametre de SORTIE intervient. Les deux branches
+    # d'origine calculaient exactement les memes lignes.
+    for i in range(alpha):
+        # Calculate cross-sectional area of the nozzle
+        area = np.pi * 0.25 * D[0, i] ** 2
+        Q[i] = area * v  # Calculate flow rate for each nozzle
+        # Calculate change in flow rate for each nozzle
+        dQ[i] = np.pi * 0.5 * D[0, i] * D[1, i] * v
+
     if Noz_type == 'tapered':
-        for i in range(alpha):
-            # Calculate cross-sectional area of the nozzle
-            area = np.pi * 0.25 * D[0, i] ** 2
-            Q[i] = area * v  # Calculate flow rate for each nozzle
-            # Calculate change in flow rate for each nozzle
-            dQ[i] = np.pi * 0.5 * D[0, i] * D[1, i] * v
-
-            Q_eq = Q
-
+        # Debit PAR BUSE. calculatePrequired en prend ensuite la moyenne, ce
+        # qui revient a la chute de pression d'une buse. Voir le defaut #4.
+        Q_eq = Q
     else:
-
-        for i in range(alpha):
-            # Calculate cross-sectional area of the nozzle
-            area = np.pi * 0.25 * D[0, i] ** 2
-            Q[i] = area * v  # Calculate flow rate for each nozzle
-            # Calculate change in flow rate for each nozzle
-            dQ[i] = np.pi * 0.5 * D[0, i] * D[1, i] * v
-            Q_eq = np.sum(Q)  # Calculate the equivalent total flow rate
+        Q_eq = np.sum(Q)  # Calculate the equivalent total flow rate
 
     return Q, dQ, Q_eq

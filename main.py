@@ -15,17 +15,14 @@
 **************************************************************************
 """
 
-from Velocity_driven import generateP, calculateQ
-from tools import readMaterial, comparePlotPV, comparePlotVisco, comparePlotQ, printTableInConsole
+from Velocity_driven import generateP
 from Velocity_driven.modeles import (
     deduire_mode_historique, deduire_modele_historique)
+from tools import readMaterial, comparePlotPV, comparePlotVisco, comparePlotQ, printTableInConsole
 from tools.readMaterial import INCERTITUDES_HISTORIQUES
 from tools.unites import KILO, entrees_vers_si
 import numpy as np
 import math
-import os
-import sys
-import openpyxl
 import matplotlib.pyplot as plt
 import xlrd
 
@@ -45,25 +42,10 @@ graph_mode = 'P'  # Plotting mode
 # Nozzle geometry
 D = np.zeros((3, alpha))
 
-# For 26 cylindrical Multinozzle
-# D[0, :] = np.array([0.257193333, 0.25623, 0.25612, 0.256406667, 0.25561, 0.25561, 0.25612, 0.255536667, 0.255376667,
-#                     0.25357, 0.25459, 0.25561, 0.2551, 0.25663, 0.25459, 0.2551, 0.25255, 0.25408, 0.25357, 0.25459,
-#                     0.25816, 0.25459, 0.25663, 0.25765, 0.25714, 0.25459])
-D[0, :] = np.ones(alpha) * 0.450 #0.250
-D[1, :] = np.ones(alpha) * 0.001  # Error on the nozzle diameters
-D[2, :] = np.ones(alpha) * 3.55
+D[0, :] = np.ones(alpha) * 0.450   # Diamètre de sortie [mm]
+D[1, :] = np.ones(alpha) * 0.001   # Error on the nozzle diameters [mm]
+D[2, :] = np.ones(alpha) * 3.55    # Diamètre d'entrée, utilisé en conique [mm]
 
-# D = np.array([[0.257193333, 0.25623, 0.25612, 0.256406667, 0.25561, 0.25561, 0.25612, 0.255536667, 0.255376667,
-#                0.25357, 0.25459, 0.25561, 0.2551, 0.25663, 0.25459, 0.2551, 0.25255, 0.25408, 0.25357, 0.25459,
-#                0.25816, 0.25459, 0.25663, 0.25765, 0.25714, 0.25459],
-#               [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-#                0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]])
-# D[0, 6] = 1*D[0, 6]
-# D = np.array([[np.ones(alpha)*0.250], [np.ones(alpha)*0.001]])
-# diameter is clogged
-
-D_avg = np.array([np.mean(D[0, :]), np.mean(D[1, :])]
-                 )  # Average diameter and error
 if Noz_type == "tapered":
     L = np.array([17.25, 0.01])  # Nozzle length and error
 else:
@@ -104,7 +86,6 @@ def open_material_file():
         return None, None
 
 
-# def compute_overall_p(v, rho, D_avg, L, n, K, eta_0, eta_inf, tau_0, lambda_, a, P_amb, debug_mode=False):
 def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a,
                       P_amb, Noz_type, R, mP, alpha, debug_mode=False,
                       modele=None, mode=None, incertitudes=None):
@@ -209,17 +190,6 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
                 print(e)
             else:
                 raise e  # Re-raise other ValueErrors
-
-    # Return results (adjust based on generateP)
-        # return P, eta, SR, Q, dP, dRi, deta, dSR
-
-      # Compute P, eta, SR, and Q for each printing speed v
-        # for i, speed in enumerate(v):
-        #     # Compute P, eta, SR, and Q for the given speed and material properties
-        #     # (Assuming the generateP function is implemented to calculate these values)
-        #     # P[i], eta[i, :], SR[i, :], Q[i, :] = generateP(rho, speed, D_avg, L, n, K, eta_0, eta_inf, tau_0,
-        #     #                                               lambda, a, P_amb, debug_mode)
-        #     pass
 
     return {
         "P": P,
