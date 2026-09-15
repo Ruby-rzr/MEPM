@@ -61,6 +61,7 @@ import numpy as np                      # noqa: E402
 import pandas as pd                     # noqa: E402
 import xlrd                             # noqa: E402
 
+from tests.contrat_unites import CORRESPONDANCE_ACTUELLE  # noqa: E402
 from tests.reference_io import (         # noqa: E402
     BASE_MATERIAUX, DOSSIER_REFERENCES, execute)
 
@@ -229,6 +230,7 @@ def metadonnees():
     return dict(
         horodatage_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         systeme_unites="SI",
+        correspondance_champ_grandeur=CORRESPONDANCE_ACTUELLE,
         git_sha=commande_git("rev-parse", "HEAD"),
         git_sha_court=commande_git("rev-parse", "--short", "HEAD"),
         git_branche=commande_git("rev-parse", "--abbrev-ref", "HEAD"),

@@ -38,7 +38,10 @@ import numpy as np                                     # noqa: E402
 import pytest                                          # noqa: E402
 
 from tests.contrat_unites import (                      # noqa: E402
-    CONTRAT, GRANDEURS_RENDUES_PAR_GENERATEP)
+    CORRESPONDANCE_ACTUELLE, CORRESPONDANCES_CONNUES, FACTEUR_PAR_GRANDEUR,
+    GRANDEURS_RENDUES_PAR_GENERATEP)
+
+CONTRAT = CORRESPONDANCES_CONNUES[CORRESPONDANCE_ACTUELLE]
 from tests.reference_io import CHAMPS_NUMERIQUES, make_D  # noqa: E402
 from tools.unites import entrees_vers_si                # noqa: E402
 
@@ -108,8 +111,9 @@ def test_correspondance_champ_grandeur(etiquette, parametres):
     assert not anomalies, (
         f"\nCas {etiquette} : la table de tests/contrat_unites.py ne decrit "
         f"plus le code.\n  " + "\n  ".join(anomalies) +
-        "\n\nSi le defaut #9 vient d'etre corrige, mettre a jour CONTRAT dans "
-        "LE MEME COMMIT, en reattachant chaque facteur a la grandeur reelle.")
+        "\n\nSi le deballage de main.compute_pressures vient de changer, "
+        "mettre a jour CORRESPONDANCE_COURANTE dans tests/contrat_unites.py "
+        "DANS LE MEME COMMIT.")
 
 
 def test_contrat_couvre_tous_les_champs():
@@ -117,6 +121,15 @@ def test_contrat_couvre_tous_les_champs():
     assert set(CONTRAT) == set(CHAMPS_NUMERIQUES), (
         f"\nchamps sans contrat : {sorted(set(CHAMPS_NUMERIQUES) - set(CONTRAT))}"
         f"\ncontrats orphelins  : {sorted(set(CONTRAT) - set(CHAMPS_NUMERIQUES))}")
+
+
+def test_toutes_les_grandeurs_ont_un_facteur():
+    """Chaque grandeur declaree porte un facteur de conversion, ou NON_DECLARABLE."""
+    for correspondance in CORRESPONDANCES_CONNUES.values():
+        for champ, entree in correspondance.items():
+            assert entree["grandeur"] in FACTEUR_PAR_GRANDEUR, (
+                f"champ {champ!r} : grandeur {entree['grandeur']!r} sans "
+                f"facteur declare dans FACTEUR_PAR_GRANDEUR")
 
 
 def test_positions_declarees_coherentes():

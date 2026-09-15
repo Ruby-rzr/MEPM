@@ -39,7 +39,9 @@ import numpy as np                                    # noqa: E402
 
 from tests import reference_io                        # noqa: E402
 from tests.contrat_unites import (                    # noqa: E402
-    BUDGET_ULP_PHASE_4, CONTRAT, NON_DECLARABLE)
+    BUDGET_ULP_PHASE_4, CORRESPONDANCE_PAR_DEFAUT, NON_DECLARABLE,
+    UNITE_PAR_GRANDEUR_MM, UNITE_PAR_GRANDEUR_SI, facteur_du_champ,
+    grandeur_du_champ)
 from tests.reference_io import (                       # noqa: E402
     CHAMPS_NUMERIQUES, distances_ulp)
 
@@ -62,10 +64,14 @@ def facteurs_applicables(doc_avant, doc_apres):
     """
     avant = doc_avant["metadonnees"].get("systeme_unites", "mm_historique")
     apres = doc_apres["metadonnees"].get("systeme_unites", "mm_historique")
+    corr_avant = doc_avant["metadonnees"].get("correspondance_champ_grandeur",
+                                              CORRESPONDANCE_PAR_DEFAUT)
     if avant == apres:
-        return {champ: 1.0 for champ in CHAMPS_NUMERIQUES}, avant, apres
-    return ({champ: CONTRAT[champ]["facteur"] for champ in CHAMPS_NUMERIQUES},
-            avant, apres)
+        facteurs = {champ: 1.0 for champ in CHAMPS_NUMERIQUES}
+    else:
+        facteurs = {champ: facteur_du_champ(champ, corr_avant)
+                    for champ in CHAMPS_NUMERIQUES}
+    return facteurs, avant, apres
 
 
 def statut_du_cas(sorties):
@@ -172,8 +178,20 @@ def compare(version_avant, version_apres, tous=False,
     doc_b = reference_io.charge(version_apres)
     res_a, res_b = doc_a["resultats"], doc_b["resultats"]
     facteurs, unites_avant, unites_apres = facteurs_applicables(doc_a, doc_b)
+    corr_a = doc_a["metadonnees"].get("correspondance_champ_grandeur",
+                                      CORRESPONDANCE_PAR_DEFAUT)
+    corr_b = doc_b["metadonnees"].get("correspondance_champ_grandeur",
+                                      CORRESPONDANCE_PAR_DEFAUT)
 
     anomalies = []
+    if corr_a != corr_b:
+        for champ in CHAMPS_NUMERIQUES:
+            ga, gb = grandeur_du_champ(champ, corr_a), grandeur_du_champ(champ, corr_b)
+            if ga != gb:
+                anomalies.append(
+                    f"CHANGEMENT DE SENS du champ {champ!r} : contenait "
+                    f"{ga!r}, contient desormais {gb!r}. Les ecarts rapportes "
+                    f"pour ce champ comparent DEUX GRANDEURS DIFFERENTES.")
     for identifiant in sorted(set(res_a) - set(res_b)):
         anomalies.append(f"cas disparu dans {version_apres} : {identifiant}")
     for identifiant in sorted(set(res_b) - set(res_a)):
@@ -223,6 +241,8 @@ def compare(version_avant, version_apres, tous=False,
         cas_communs=len(set(res_a) & set(res_b)),
         cas_modifies=len(cas_modifies),
         lignes=len(lignes),
+        correspondance_avant=corr_a,
+        correspondance_apres=corr_b,
         sha_avant=doc_a["metadonnees"].get("git_sha_court"),
         sha_apres=doc_b["metadonnees"].get("git_sha_court"),
         base_avant=doc_a["metadonnees"].get("base_materiaux_sha256"),
@@ -231,16 +251,21 @@ def compare(version_avant, version_apres, tous=False,
     return lignes, anomalies, resume
 
 
-def resume_par_champ(lignes, facteurs, budget_ulp):
+def resume_par_champ(lignes, facteurs, budget_ulp, correspondances,
+                     systemes=("mm_historique", "SI")):
     """Agrege les ecarts par champ. C'est le tableau principal du livrable."""
     resume = {}
     for champ in CHAMPS_NUMERIQUES:
         resume[champ] = dict(
             champ=champ,
-            grandeur_reelle=CONTRAT[champ]["grandeur"],
+            grandeur_reelle=grandeur_du_champ(champ, correspondances[1]),
             facteur=facteurs.get(champ, 1.0),
-            unite_avant=CONTRAT[champ]["unite_mm"],
-            unite_apres=CONTRAT[champ]["unite_si"],
+            unite_avant=(UNITE_PAR_GRANDEUR_SI if systemes[0] == "SI"
+                         else UNITE_PAR_GRANDEUR_MM)[
+                grandeur_du_champ(champ, correspondances[0])],
+            unite_apres=(UNITE_PAR_GRANDEUR_SI if systemes[1] == "SI"
+                         else UNITE_PAR_GRANDEUR_MM)[
+                grandeur_du_champ(champ, correspondances[1])],
             n_cas=0, n_elements=0, ulp_max=0.0, n_hors_budget=0,
             rapport_min=float("inf"), rapport_max=float("-inf"),
             n_nan_apparus=0, n_nan_disparus=0)
@@ -312,6 +337,8 @@ def affiche(lignes, anomalies, resume, limite=None):
     print(f"Comparaison : {resume['version_avant']} -> {resume['version_apres']}")
     print(f"  commit      : {resume['sha_avant']} -> {resume['sha_apres']}")
     print(f"  unites      : {resume['unites_avant']} -> {resume['unites_apres']}")
+    print(f"  champs      : {resume['correspondance_avant']} -> "
+          f"{resume['correspondance_apres']}")
     if resume["base_avant"] != resume["base_apres"]:
         print("  ATTENTION   : materials.xls a change entre les deux versions,")
         print("                les ecarts ne sont pas imputables au seul code.")
@@ -326,8 +353,10 @@ def affiche(lignes, anomalies, resume, limite=None):
         if len(anomalies) > 50:
             print(f"  ... et {len(anomalies) - 50} autre(s)")
 
-    par_champ = resume_par_champ(lignes, resume["facteurs"],
-                                 resume["budget_ulp"])
+    par_champ = resume_par_champ(
+        lignes, resume["facteurs"], resume["budget_ulp"],
+        (resume["correspondance_avant"], resume["correspondance_apres"]),
+        (resume["unites_avant"], resume["unites_apres"]))
     print("\nSynthese par champ :")
     affiche_resume_par_champ(par_champ, resume["budget_ulp"])
 

@@ -108,12 +108,16 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
     Computes overall pressure for each velocity in v and retrieves viscosity/shear rate data.
 
     Phase 1 de la refonte : ce corps de fonction est la boucle de calcul de
-    main.py, extraite telle quelle et sans aucune modification de calcul, afin
-    que le modèle soit appelable sans tkinter ni saisie console. Le déballage
-    des sorties de generateP est conservé à l'identique, y compris la
-    permutation des positions 5, 6 et 7 (défaut #9 du diagnostic) : ce qui est
-    nommé dP ici est en réalité deta, dRi est dP, et deta est dRi. La
-    correction relève d'une phase ultérieure.
+    main.py, extraite de main.py afin que le modèle soit appelable sans
+    tkinter ni saisie console.
+
+    Phase 5, défaut #9 corrigé : le déballage des sorties de generateP était
+    permuté. generateP rend (P, eta, SR, Q, deta, dP, dRi, dSR) et les
+    positions 4, 5 et 6 étaient reçues dans l'ordre dP, dRi, deta. Le champ
+    nommé dP contenait donc deta, dRi contenait dP, et deta contenait dRi.
+    Chaque champ contient désormais la grandeur que son nom annonce.
+    Toute modification de ce déballage doit mettre à jour
+    CORRESPONDANCE_COURANTE dans tests/contrat_unites.py, dans le même commit.
 
     Unités: SI STRICT, m, Pa, s, kg. La conversion depuis les mm de saisie a
     lieu à la frontière, dans tools.unites.entrees_vers_si, appelée par
@@ -155,10 +159,10 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
             - eta (numpy.ndarray): Array of viscosity values for each P/v combination. [Pa.s]
             - SR (numpy.ndarray): Array of shear rate values for each P/v combination. [1/s]
             - Q (numpy.ndarray): Array of mass flow rates for each P/v combination (optional, might depend on generateP). [m^3/s]
-            - dP (numpy.ndarray): Array of pressure derivatives (optional, might depend on generateP). Contient en réalité deta [Pa.s], défaut #9.
+            - dP (numpy.ndarray): Array of pressure derivatives (optional, might depend on generateP). Unité non homogène à des Pa, défaut #20.
             - dP_kPa (numpy.ndarray): idem, divisé par 1000, tel que tracé par main.py.
-            - dRi (numpy.ndarray): Array of internal resistance derivatives (optional, might depend on generateP). Contient en réalité dP, défaut #9. Unité non homogène à des Pa, défaut #20.
-            - deta (numpy.ndarray): Array of viscosity derivatives (optional, might depend on generateP). Contient en réalité dRi, défaut #9. Unité non homogène à Ri, défaut #20.
+            - dRi (numpy.ndarray): Array of internal resistance derivatives (optional, might depend on generateP). Unité non homogène à Ri, défaut #20.
+            - deta (numpy.ndarray): Array of viscosity derivatives (optional, might depend on generateP). [Pa.s]
             - dSR (numpy.ndarray): Array of shear rate derivatives (optional, might depend on generateP).
 
     Authors: Jean-François Chauvette, David Brzeski, Anirban, Raphaël Plante
@@ -175,15 +179,16 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
 
     for i in range(len(v)):
         try:
-            newP, newEta, newSR, newQ, newdP, newdRi, newdEta, newdSR = generateP.generateP(
+            # Ordre de retour de generateP : P, eta, SR, Q, deta, dP, dRi, dSR.
+            newP, newEta, newSR, newQ, newdEta, newdP, newdRi, newdSR = generateP.generateP(
                 rho, v[i], D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP, debug_mode)
             P[i] = newP
             eta[i] = newEta
             SR[i] = newSR
             Q[i] = newQ
+            deta[i] = newdEta
             dP[i] = newdP
             dRi[i] = newdRi
-            deta[i] = newdEta
             dSR[i] = newdSR
 
         except ValueError as e:

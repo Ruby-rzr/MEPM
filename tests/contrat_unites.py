@@ -3,26 +3,33 @@
 """
 Contrat d'unites des champs enregistres dans les references.
 
+Un facteur de conversion appartient a une GRANDEUR PHYSIQUE, pas a un nom de
+champ. Ce module separe donc deux choses :
+
+  FACTEUR_PAR_GRANDEUR
+      ce que devient chaque grandeur quand on passe des millimetres au SI ;
+
+  CORRESPONDANCE_COURANTE et CORRESPONDANCE_AVANT_DEFAUT_9
+      quel champ contient quelle grandeur, selon la version du code qui a
+      produit la reference.
+
 #############################################################################
-#  AVERTISSEMENT, A LIRE AVANT DE CORRIGER LE DEFAUT #9                     #
+#  POURQUOI CETTE SEPARATION                                                #
 #                                                                           #
-#  Les noms de champs utilises ci-dessous sont AUJOURD'HUI FAUX. Le          #
-#  deballage des sorties de generateP dans main.compute_pressures est        #
-#  permute : le champ nomme 'dP' contient deta, le champ nomme 'dRi'         #
-#  contient dP, le champ nomme 'deta' contient dRi. C'est le defaut #9.      #
+#  Jusqu'a la correction du defaut #9, le deballage des sorties de generateP #
+#  dans main.compute_pressures etait permute : le champ nomme 'dP'           #
+#  contenait deta, 'dRi' contenait dP, et 'deta' contenait dRi.              #
 #                                                                           #
-#  La colonne 'facteur' de cette table est attachee a la GRANDEUR REELLE,    #
-#  pas au nom. Le jour ou le defaut #9 sera corrige, le contenu des champs   #
-#  se remettra en place et cette table deviendra fausse EN SILENCE : les     #
-#  valeurs auront bouge et le comparateur les validerait avec le mauvais     #
-#  facteur.                                                                 #
+#  Attacher les facteurs aux NOMS aurait rendu la table fausse en silence le #
+#  jour de la correction : les valeurs auraient bouge et le comparateur les  #
+#  aurait validees avec le mauvais facteur. En les attachant aux GRANDEURS   #
+#  et en versionnant la correspondance, une reference ancienne reste         #
+#  comparable apres la correction.                                          #
 #                                                                           #
-#  LA CORRECTION DU DEFAUT #9 ET LA MISE A JOUR DE CETTE TABLE DOIVENT SE    #
-#  FAIRE DANS LE MEME COMMIT.                                               #
-#                                                                           #
-#  tests/test_contrat_unites.py verifie a l'EXECUTION que la correspondance  #
-#  declaree ici est bien celle du code. Il echoue si l'une bouge sans        #
-#  l'autre, dans un sens comme dans l'autre.                                #
+#  TOUTE MODIFICATION DU DEBALLAGE DANS main.compute_pressures DOIT METTRE   #
+#  A JOUR CORRESPONDANCE_COURANTE DANS LE MEME COMMIT.                       #
+#  tests/test_contrat_unites.py le verifie a l'execution et echoue si l'une  #
+#  bouge sans l'autre, dans un sens comme dans l'autre.                      #
 #############################################################################
 
 Auteurs : contribution de la refonte. Le code modelise est de David Brzeski,
@@ -37,37 +44,82 @@ GRANDEURS_RENDUES_PAR_GENERATEP = ("P", "eta", "SR", "Q",
 # formule n'etant pas dimensionnellement homogene. Voir defaut #20.
 NON_DECLARABLE = None
 
-# Pour chaque champ enregistre dans une reference :
-#   position  : indice dans le tuple rendu par generateP, ou None si le champ
-#               est derive d'un autre (les variantes en kPa) ;
-#   grandeur  : ce que le champ contient REELLEMENT aujourd'hui (defaut #9) ;
-#   unite_mm  : unite dans les references produites avant la phase 4 ;
-#   unite_si  : unite dans les references produites depuis la phase 4 ;
-#   facteur   : valeur_si / valeur_mm attendue, ou NON_DECLARABLE.
-CONTRAT = {
-    "P":      dict(position=0, grandeur="P",    unite_mm="Pa",
-                   unite_si="Pa",     facteur=1.0),
-    "P_kPa":  dict(position=None, grandeur="P/1000", unite_mm="kPa",
-                   unite_si="kPa",    facteur=1.0),
-    "eta":    dict(position=1, grandeur="eta",  unite_mm="Pa.s",
-                   unite_si="Pa.s",   facteur=1.0),
-    "SR":     dict(position=2, grandeur="SR",   unite_mm="1/s",
-                   unite_si="1/s",    facteur=1.0),
-    "Q":      dict(position=3, grandeur="Q",    unite_mm="mm^3/s",
-                   unite_si="m^3/s",  facteur=1e-9),
-    "dP":     dict(position=4, grandeur="deta", unite_mm="Pa.s",
-                   unite_si="Pa.s",   facteur=1.0),
-    "dP_kPa": dict(position=None, grandeur="deta/1000", unite_mm="Pa.s/1000",
-                   unite_si="Pa.s/1000", facteur=1.0),
-    "dRi":    dict(position=5, grandeur="dP",   unite_mm="non homogene",
-                   unite_si="non homogene", facteur=NON_DECLARABLE),
-    "deta":   dict(position=6, grandeur="dRi",  unite_mm="non homogene",
-                   unite_si="non homogene", facteur=NON_DECLARABLE),
-    "dSR":    dict(position=7, grandeur="dSR",  unite_mm="1/s",
-                   unite_si="1/s",    facteur=1.0),
+# Ce que devient chaque grandeur quand la chaine passe des mm au SI.
+FACTEUR_PAR_GRANDEUR = {
+    "P": 1.0,              # Pa, invariant
+    "P/1000": 1.0,         # kPa, invariant
+    "eta": 1.0,            # Pa.s, invariant
+    "SR": 1.0,             # 1/s, invariant
+    "Q": 1e-9,             # mm^3/s vers m^3/s
+    "deta": 1.0,           # Pa.s, invariant
+    "deta/1000": 1.0,      # invariant
+    "dP": NON_DECLARABLE,  # defaut #20
+    "dP/1000": NON_DECLARABLE,
+    "dRi": NON_DECLARABLE,  # defaut #20
+    "dSR": 1.0,            # 1/s, invariant
 }
 
-# Justification des deux NON_DECLARABLE, defaut #20.
+UNITE_PAR_GRANDEUR_MM = {
+    "P": "Pa", "P/1000": "kPa", "eta": "Pa.s", "SR": "1/s", "Q": "mm^3/s",
+    "deta": "Pa.s", "deta/1000": "Pa.s/1000", "dP": "non homogene",
+    "dP/1000": "non homogene", "dRi": "non homogene", "dSR": "1/s",
+}
+UNITE_PAR_GRANDEUR_SI = dict(UNITE_PAR_GRANDEUR_MM, Q="m^3/s")
+
+# Correspondance en vigueur dans le code ACTUEL, defaut #9 corrige.
+# 'position' est l'indice dans le tuple rendu par generateP, ou None pour un
+# champ derive d'un autre.
+CORRESPONDANCE_COURANTE = {
+    "P":      dict(position=0, grandeur="P"),
+    "P_kPa":  dict(position=None, grandeur="P/1000"),
+    "eta":    dict(position=1, grandeur="eta"),
+    "SR":     dict(position=2, grandeur="SR"),
+    "Q":      dict(position=3, grandeur="Q"),
+    "deta":   dict(position=4, grandeur="deta"),
+    "dP":     dict(position=5, grandeur="dP"),
+    "dP_kPa": dict(position=None, grandeur="dP/1000"),
+    "dRi":    dict(position=6, grandeur="dRi"),
+    "dSR":    dict(position=7, grandeur="dSR"),
+}
+
+# Correspondance des references produites AVANT la correction du defaut #9,
+# c'est a dire reference_v1_phase1 et reference_v2_phase4. Conservee pour que
+# ces references restent comparables.
+CORRESPONDANCE_AVANT_DEFAUT_9 = {
+    "P":      dict(position=0, grandeur="P"),
+    "P_kPa":  dict(position=None, grandeur="P/1000"),
+    "eta":    dict(position=1, grandeur="eta"),
+    "SR":     dict(position=2, grandeur="SR"),
+    "Q":      dict(position=3, grandeur="Q"),
+    "dP":     dict(position=4, grandeur="deta"),     # permute
+    "dP_kPa": dict(position=None, grandeur="deta/1000"),
+    "dRi":    dict(position=5, grandeur="dP"),       # permute
+    "deta":   dict(position=6, grandeur="dRi"),      # permute
+    "dSR":    dict(position=7, grandeur="dSR"),
+}
+
+# Nom sous lequel une reference declare sa correspondance dans ses
+# metadonnees. Les references anterieures a la phase 5 n'en portent pas, et
+# sont traitees comme CORRESPONDANCE_AVANT_DEFAUT_9.
+CORRESPONDANCES_CONNUES = {
+    "courante": CORRESPONDANCE_COURANTE,
+    "avant_defaut_9": CORRESPONDANCE_AVANT_DEFAUT_9,
+}
+CORRESPONDANCE_PAR_DEFAUT = "avant_defaut_9"
+CORRESPONDANCE_ACTUELLE = "courante"
+
+
+def grandeur_du_champ(champ, nom_correspondance):
+    """Grandeur reellement contenue par un champ, pour une correspondance."""
+    return CORRESPONDANCES_CONNUES[nom_correspondance][champ]["grandeur"]
+
+
+def facteur_du_champ(champ, nom_correspondance):
+    """Facteur de conversion mm vers SI du contenu reel d'un champ."""
+    return FACTEUR_PAR_GRANDEUR[grandeur_du_champ(champ, nom_correspondance)]
+
+
+# Justification des NON_DECLARABLE, defaut #20.
 #
 # calculateReqError additionne sous une meme racine trois termes de dimensions
 # differentes. Il en resulte que dRi ne porte pas la dimension de Ri, et que
@@ -83,11 +135,6 @@ CONTRAT = {
 #                  conique empirique  A ~ s^4 et B ~ s^3 sont COMPARABLES,
 #                                     le rapport depend du cas et de la
 #                                     vitesse : aucun facteur n'existe.
-#
-# Ces deux champs sont donc rapportes par le comparateur, avec leur rapport
-# observe minimal et maximal, mais ne sont pas soumis au budget en ULP. C'est
-# le seul endroit ou la neutralite de la phase 4 n'est pas demontrable, et la
-# raison en est un defaut anterieur, pas la conversion.
 
 # Budget d'ecart accorde a la phase 4, et a elle seule. Voir CLAUDE.md.
 BUDGET_ULP_PHASE_4 = 32
