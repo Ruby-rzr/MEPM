@@ -38,7 +38,7 @@ if RACINE not in sys.path:
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 # Reference rejouee par tests/test_regression.py.
-VERSION_ACTIVE = "reference_v1_phase1"
+VERSION_ACTIVE = "reference_v2_phase4"
 
 # Champs numeriques enregistres pour un cas dont le calcul aboutit.
 CHAMPS_NUMERIQUES = ("P", "P_kPa", "eta", "SR", "Q", "dP", "dP_kPa",
@@ -73,6 +73,38 @@ def sha256_fichier(chemin):
     """sha256 d'un fichier, en hexadecimal."""
     with open(chemin, "rb") as fichier:
         return hashlib.sha256(fichier.read()).hexdigest()
+
+
+def distances_ulp(a, b):
+    """Distance en ULP, element par element, entre deux tableaux float64.
+
+    Deux NaN sont a distance nulle. Un NaN face a un nombre est a distance
+    infinie. La distance est exacte tant qu'elle reste petite, ce qui est le
+    seul regime qui compte face a un budget de quelques dizaines d'ULP.
+    """
+    a = np.ascontiguousarray(a, dtype=np.float64)
+    b = np.ascontiguousarray(b, dtype=np.float64)
+    ua, ub = a.view(np.uint64), b.view(np.uint64)
+    masque_signe = np.uint64(0x8000000000000000)
+    masque_magnitude = np.uint64(0x7FFFFFFFFFFFFFFF)
+
+    negatif_a = (ua & masque_signe) != 0
+    negatif_b = (ub & masque_signe) != 0
+    mag_a = ua & masque_magnitude
+    mag_b = ub & masque_magnitude
+
+    # Meme signe : difference des magnitudes. Signes opposes : on passe par
+    # zero, donc somme des magnitudes.
+    grand = np.maximum(mag_a, mag_b)
+    petit = np.minimum(mag_a, mag_b)
+    distance = np.where(negatif_a == negatif_b,
+                        (grand - petit).astype(np.float64),
+                        (mag_a.astype(np.float64) + mag_b.astype(np.float64)))
+
+    nan_a, nan_b = np.isnan(a), np.isnan(b)
+    distance = np.where(nan_a & nan_b, 0.0, distance)
+    distance = np.where(nan_a ^ nan_b, np.inf, distance)
+    return distance
 
 
 def _bits(tableau):
@@ -178,23 +210,31 @@ def _enregistre(x):
 def execute(entrees, parametres_materiau=None):
     """Execute un cas et retourne ses sorties, ou l'exception levee.
 
+    Les entrees enregistrees dans une reference decrivent la buse TELLE QUE
+    MESUREE, en mm. La conversion vers le SI a lieu ici, a la frontiere, par
+    la meme fonction que celle utilisee par main.py.
+
     Args:
         entrees (dict): bloc 'entrees' d'un enregistrement de reference.
+            Geometrie en mm, vitesses en mm/s.
         parametres_materiau (dict): parametres rheologiques, obligatoire pour
             la famille A. Ignore pour la famille B, dont le materiau est relu
             depuis materials.xls : la lecture fait partie de ce qui est gele.
 
     Returns:
-        dict: bloc 'sorties' au format des references.
+        dict: bloc 'sorties' au format des references, en SI.
     """
     import main                              # noqa: PLC0415
     from tools import readMaterial           # noqa: PLC0415
+    from tools.unites import entrees_vers_si  # noqa: PLC0415
 
-    D = construit_D(entrees["D_description"])
-    alpha = D.shape[1]
-    L = np.array(entrees["L"], dtype=float)
+    D_mm = construit_D(entrees["D_description"])
+    alpha = D_mm.shape[1]
     theta = math.radians(entrees["angle_deg"])
-    v = np.array(entrees["v"], dtype=float)
+    # Frontiere d'entree, identique a celle de main.py.
+    D, L, v = entrees_vers_si(D_mm,
+                              np.array(entrees["L"], dtype=float),
+                              np.array(entrees["v"], dtype=float))
 
     resultat = dict(alpha=alpha)
 

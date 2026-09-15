@@ -228,6 +228,7 @@ def metadonnees():
     suivis_modifies = commande_git("status", "--porcelain", "--untracked-files=no")
     return dict(
         horodatage_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        systeme_unites="SI",
         git_sha=commande_git("rev-parse", "HEAD"),
         git_sha_court=commande_git("rev-parse", "--short", "HEAD"),
         git_branche=commande_git("rev-parse", "--abbrev-ref", "HEAD"),

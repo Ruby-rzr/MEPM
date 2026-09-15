@@ -5,14 +5,19 @@ def calculateSR(Q, D, v, n, Noz_type):
     """
     calculateSR is the function used to obtain the shear rate inside multiple nozzles.
 
+    Unites : SI strict. Le taux de cisaillement est en 1/s, donc invariant
+    par changement d'unite de longueur, mais Q et D doivent etre coherents.
+
     Inputs:
-        Q (array-like): Flow rate array
-        D (array-like): Nozzle diameter array
-        v (numeric): Desired speed for all nozzles
+        Q (array-like): Flow rate array. [m^3/s]
+        D (array-like): Nozzle diameter array (3, alpha). [m]
+        v (numeric): Desired speed for all nozzles. [m/s]
+        n (numeric): Flow behaviour index. [-]
+        Noz_type (str): "tapered", ou toute autre valeur pour cylindrique.
 
     Outputs:
-        SR (array-like): Shear rate array
-        dSR (array-like): Change in shear rate array
+        SR (array-like): Shear rate array. [1/s]
+        dSR (array-like): Change in shear rate array. [1/s]
 
     Référence:
         J.-F. Chauvette, thèse de doctorat, Polytechnique Montréal (2023),

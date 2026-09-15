@@ -6,14 +6,29 @@ def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
     calculateReq is the function used to obtain the equivalent hydraulic
     resistance of several nozzles in parallel.
 
+    Unites : SI strict.
+
+    ATTENTION, R_eq N'A PAS LA MEME DIMENSION SELON LA BRANCHE (defaut #2) :
+      - cylindrique       : Pa.s/m^3, multiplie Q pour donner des Pa ;
+      - conique analytique: Pa/(m^3/s)^n, multiplie Q^n pour donner des Pa ;
+      - conique empirique : unite indeterminee, R est un parametre ajuste.
+
     Inputs:
-        eta (array-like): Apparent viscosity array
-        L (array-like): Nozzle length array
-        D (array-like): Nozzle diameter array
+        eta (array-like): Apparent viscosity array. [Pa.s]
+        theta (numeric): Half-cone angle. [rad] Non utilise par cette branche,
+            la geometrie conique etant decrite par L, De et Do.
+        K (numeric): Flow consistency index. [Pa.s^n]
+        n (numeric): Flow behaviour index. [-]
+        L (array-like): Nozzle length and its error. [m]
+        D (array-like): Nozzle diameter array (3, alpha). [m]
+        Noz_type (str): "tapered", ou toute autre valeur pour cylindrique.
+        R (numeric): Resistance ajustee empiriquement, base de materiaux.
+            Unite indeterminee, voir calculatePrequired.
 
     Outputs:
-        R_eq (numeric): Equivalent hydraulic resistance
-        Ri (array-like): Individual hydraulic resistance for each nozzle
+        R_eq (numeric or array-like): Equivalent hydraulic resistance.
+            Unite dependante de la branche, voir ci-dessus.
+        Ri (array-like): Individual hydraulic resistance for each nozzle.
 
     Référence:
         J.-F. Chauvette, thèse de doctorat, Polytechnique Montréal (2023),

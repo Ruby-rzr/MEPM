@@ -3,11 +3,16 @@
 """
 Invariance du nombre de Reynolds, phase 4 de la refonte.
 
-validateReynolds calcule Re = rho v D / eta puis divise par 1e6. Cette
-division N'EST PAS un rustinage : c'est une conversion d'unites correcte. Avec
-rho en kg/m^3, v en mm/s, D en mm et eta en Pa.s, le produit rho v D / eta vaut
-1e6 fois le nombre de Reynolds, puisque v D vaut 1e-6 fois sa valeur en m^2/s.
-Ce test le demontre en recalculant Re directement en SI.
+validateReynolds calculait Re = rho v D / eta puis divisait par 1e6. Cette
+division N'ETAIT PAS un rustinage : c'etait une conversion d'unites correcte.
+Avec rho en kg/m^3, v en mm/s, D en mm et eta en Pa.s, le produit rho v D / eta
+valait 1e6 fois le nombre de Reynolds, puisque v D valait 1e-6 fois sa valeur
+en m^2/s.
+
+Depuis la phase 4, la conversion a lieu a la frontiere d'entree et la division
+a disparu. Ce test verifie que la valeur rendue est inchangee : il compare Re
+au produit rho v D / eta calcule en SI, qui est la meme grandeur avant et
+apres la conversion.
 
 Il fige aussi le defaut #13 : Re est calcule sur les TROIS lignes du tableau D,
 donc sur le diametre de sortie, sur l'erreur de mesure et sur le diametre
@@ -30,6 +35,7 @@ import numpy as np                                     # noqa: E402
 import pytest                                          # noqa: E402
 
 from tests.reference_io import make_D                  # noqa: E402
+from tools.unites import entrees_vers_si               # noqa: E402
 from Velocity_driven import validateReynolds           # noqa: E402
 
 # Budget d'ecart entre la valeur rendue par le code et la valeur recalculee en
@@ -57,13 +63,11 @@ def ecart_ulp(a, b):
 @pytest.mark.parametrize("rho, v, De, Do, eta_val, alpha", CAS)
 def test_reynolds_egale_la_valeur_SI(rho, v, De, Do, eta_val, alpha):
     """Re rendu par le code egale rho v D / eta calcule directement en SI."""
-    D = make_D(De, Do, alpha)
+    D_si, _, v_si = entrees_vers_si(make_D(De, Do, alpha), np.array([0.0]), v)
     eta = np.full(alpha, eta_val)
-    _, Re = validateReynolds.validateReynolds(rho, v, D, eta, False)
+    _, Re = validateReynolds.validateReynolds(rho, float(v_si), D_si, eta, False)
 
-    D_si = D * 1e-3            # mm vers m
-    v_si = v * 1e-3            # mm/s vers m/s
-    Re_si = rho * v_si * D_si / eta
+    Re_si = rho * float(v_si) * D_si / eta
 
     assert Re.shape == Re_si.shape
     ecarts = [(indice, float(Re[indice]), float(Re_si[indice]),
@@ -86,14 +90,14 @@ def test_reynolds_porte_sur_les_trois_lignes_de_D(rho, v, De, Do, eta_val, alpha
     ne sont pas des nombres de Reynolds, et le critere de laminarite porte
     pourtant sur elles.
     """
-    D = make_D(De, Do, alpha)
+    D_si, _, v_si = entrees_vers_si(make_D(De, Do, alpha), np.array([0.0]), v)
     eta = np.full(alpha, eta_val)
-    _, Re = validateReynolds.validateReynolds(rho, v, D, eta, False)
+    _, Re = validateReynolds.validateReynolds(rho, float(v_si), D_si, eta, False)
 
     assert Re.shape == (3, alpha), (
         f"Re a la forme {Re.shape}, attendu (3, {alpha}). Si cette forme a "
         "change, le defaut #13 a ete corrige : le constater explicitement.")
     # Les trois lignes sont proportionnelles aux trois lignes de D.
     for ligne in range(3):
-        attendu = rho * (v * 1e-3) * (D[ligne, :] * 1e-3) / eta
+        attendu = rho * float(v_si) * D_si[ligne, :] / eta
         assert np.allclose(Re[ligne, :], attendu, rtol=1e-15, atol=0.0)

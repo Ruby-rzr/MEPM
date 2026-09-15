@@ -78,6 +78,24 @@ une valeur numérique de sortie produit une nouvelle version, bascule
 `VERSION_ACTIVE`, et justifie chaque écart à l'aide du tableau comparatif, pas
 du diff JSON.
 
+### Le budget en ULP était réservé à la phase 4
+
+La phase 4 a converti le modèle en SI strict. Cette conversion ne peut pas être
+neutre au bit près : `0.45 * 1e-3` ne vaut pas le flottant `0.00045`, donc une
+chaîne menée en mètres ne rend pas exactement le même flottant que la même
+chaîne menée en millimètres, même quand les millimètres s'annulent
+algébriquement. Un budget de **32 ULP par valeur** lui a donc été accordé, sous
+le nom `BUDGET_ULP_PHASE_4` dans `tests/contrat_unites.py`, contre 18 ULP
+mesurés au pire cas avant la conversion et 9 après.
+
+**Ce budget valait pour la phase 4 et pour elle seule.** Depuis que
+`reference_v2_phase4` a été produite et validée, elle est la nouvelle base
+d'égalité BIT A BIT. Tout écart ultérieur, dans les phases 5, 6, 7 et 8,
+redevient un échec, sauf décision explicite portant sur un défaut nommé.
+
+Raison : si chaque phase apporte sa propre tolérance, la suite ne détecte plus
+rien à la phase 8.
+
 Règles de comparaison des flottants, sans tolérance :
 
 - deux NaN sont égaux, quelle que soit leur charge utile,
@@ -88,6 +106,37 @@ Règles de comparaison des flottants, sans tolérance :
 La suite vérifie aussi le sha256 de `materials.xls`. Si la base a changé, le
 test d'intégrité échoue avec un message explicite et les cas qui lisent la base
 sont ignorés plutôt que comparés à tort.
+
+## Unités
+
+Le modèle travaille en **SI strict** à l'intérieur : m, Pa, s, kg. Les
+conversions ont lieu uniquement aux frontières :
+
+| Frontière | Où | Quoi |
+|---|---|---|
+| saisie | `tools.unites.entrees_vers_si` | la géométrie et la vitesse sont saisies en mm et mm/s |
+| affichage | `generateP`, `main.py` | retour aux mm et aux g/s pour la console et les tracés |
+| ajustement empirique | `calculatePrequired` | `Q` en mm³/s, convention dans laquelle `R` et `mP` ont été ajustés |
+
+`materials.xls` est déjà en SI et ne demande aucune conversion.
+
+Le facteur `FACTEUR_UNITES_AJUSTEMENT_EMPIRIQUE` de `calculatePrequired` n'est
+dérivé d'aucune équation physique. Il est solidaire des valeurs de `R` et de
+`mP` et ne se modifie pas sans les réajuster. L'hypothèse MPa vers Pa est
+cohérente en ordre de grandeur mais **non confirmée**, le script d'ajustement
+étant absent du dépôt.
+
+### Le piège de la table de facteurs
+
+`tests/contrat_unites.py` attache un facteur de conversion à chaque champ
+enregistré dans les références. Ces facteurs sont attachés à la **grandeur
+réellement contenue**, qui ne correspond pas au nom du champ à cause du
+défaut #9, le déballage permuté de `generateP` dans `compute_pressures`.
+
+**La correction du défaut #9 et la mise à jour de cette table doivent se faire
+dans le même commit.** `tests/test_contrat_unites.py` vérifie à l'exécution que
+la correspondance déclarée est bien celle du code, et échoue si l'une bouge
+sans l'autre, dans un sens comme dans l'autre.
 
 ## Tests analytiques et échecs attendus
 

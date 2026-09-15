@@ -10,16 +10,25 @@ def validateReynolds(rho, v, D, eta, debug_mode=False):
     pos is the position array of nozzles having non-laminar flow.
     Function valid only for the Extended Herschell-Bulkley, Herschell-Bulkley, Sisko, Ostwald-de-Waele, Bingham, and Newtonian models.
 
+    Unites : SI strict. La division par 1e6 presente dans les versions
+    anterieures a disparu : elle convertissait v et D de mm vers m, ce qui est
+    desormais fait a la frontiere par tools.unites.entrees_vers_si. Ce
+    n'etait PAS un rustinage mais une conversion correcte, voir
+    tests/test_reynolds.py.
+
     Parameters:
-    rho (array-like): Density of the fluid.
-    v (array-like): Velocity of the fluid.
-    D (array-like): Diameter of the nozzles.
-    eta (array-like): Viscosity of the fluid.
+    rho (numeric): Density of the fluid. [kg/m^3]
+    v (numeric): Velocity of the fluid. [m/s]
+    D (array-like): Diameter of the nozzles, tableau (3, alpha). [m]
+    eta (array-like): Viscosity of the fluid. [Pa.s]
     debug_mode (bool, optional): Debug mode flag. Default is False.
 
     Returns:
     typeEcoul (int): Type of flow - 0 for laminar, 1 for transition zone, 2 for turbulent.
-    Re (numpy.ndarray): Reynolds number array for each nozzle.
+    Re (numpy.ndarray): Reynolds number array, forme (3, alpha). [-]
+        DEFAUT #13 : Re est calcule sur les TROIS lignes de D, donc aussi sur
+        l'erreur de mesure et sur le diametre d'entree, et le critere de
+        laminarite porte sur les trois. Comportement conserve tel quel.
     
     Author: David Brzeski, Jean-François Chauvette, Raphaël Plante
         %Date: June 13, 2020 - February 13, 2024
@@ -31,8 +40,9 @@ def validateReynolds(rho, v, D, eta, debug_mode=False):
             typeEcoul = np.full(D.shape[0], np.nan)
             Re = np.full(D.shape[0], np.nan)
         else:
+            # Sans division : avec rho en kg/m^3, v en m/s, D en m et eta en
+            # Pa.s, le quotient est directement adimensionnel.
             Re = rho * v * D / eta
-            Re = Re / 1e6  # To render unitless, since rho is in kg/m³ and viscosity is in Pa.s (kg/m.s)
 
             if np.all(Re > 0) and np.all(Re < 100):  # Laminar
                 typeEcoul = 0

@@ -29,21 +29,25 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
     """
     calculateVisco is the function used to obtain the apparent viscosity inside every nozzle, depending on the material's behavior law.
 
+    Unites : SI strict. Toutes les grandeurs de cette fonction sont deja en
+    SI dans materials.xls, aucune conversion n'a lieu ici.
+
     Inputs:
-        SR (array-like): Shear rate
-        n (numeric): Viscosity index
-        K (numeric): Consistency index
-        eta_inf (numeric): Infinite viscosity
-        eta_0 (numeric): Rest-state viscosity
-        tau_0 (numeric): Creep factor
-        lmbda (numeric): Relaxation time
-        a (numeric): Carreau model exponent
+        SR (array-like): Shear rate. [1/s]
+        n (numeric): Viscosity index. [-]
+        K (numeric): Consistency index. [Pa.s^n]
+        eta_inf (numeric): Infinite viscosity. [Pa.s]
+        eta_0 (numeric): Rest-state viscosity. [Pa.s]
+        tau_0 (numeric): Creep factor. [Pa]
+        lmbda (numeric): Relaxation time. [s]
+        a (numeric): Carreau model exponent. [-]
         debug_mode (bool): Flag to print debug information
-        dSR (array-like): Error in shear rate array
+        dSR (array-like): Error in shear rate array. [1/s]
+            DEFAUT #14 : cet argument est ecrase par INCERTITUDE_SR.
 
     Outputs:
-        eta (array-like): Apparent viscosity array
-        deta (array-like): Error in apparent viscosity array
+        eta (array-like): Apparent viscosity array. [Pa.s]
+        deta (array-like): Error in apparent viscosity array. [Pa.s]
         
         Author: David Brzeski, Jean-François Chauvette, Raphaël Plante
             %Date: June 13, 2020 - February 13, 2024

@@ -5,14 +5,20 @@ def calculateQ(D, v, Noz_type):
     """
     calculateQ is the function used to obtain the volumetric flow rate through several nozzles.
 
+    Unites : SI strict. Conversion des mm de saisie assuree en amont par
+    tools.unites.entrees_vers_si.
+
     Inputs:
-        D (array-like): Nozzle diameter array (alpha x 2)
-        v (numeric): Desired speed for all nozzles
+        D (array-like): Nozzle diameter array (3, alpha) : sortie, erreur,
+            entree. [m]
+        v (numeric): Desired speed for all nozzles. [m/s]
+        Noz_type (str): "tapered", ou toute autre valeur pour cylindrique.
 
     Outputs:
-        Q (array-like): Flow rate array for each of the nozzles
-        dQ (array-like): Change in flow rate for each of the nozzles
-        Q_eq (numeric): Equivalent total flow rate
+        Q (array-like): Flow rate array for each of the nozzles. [m^3/s]
+        dQ (array-like): Change in flow rate for each of the nozzles. [m^3/s]
+        Q_eq (numeric or array-like): Equivalent total flow rate. [m^3/s]
+            Somme sur les buses en cylindrique, tableau par buse en conique.
 
         Author: David Brzeski, Jean-François Chauvette, Raphaël Plante
             %Date: June 13, 2020 - February 13, 2024

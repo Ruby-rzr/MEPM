@@ -29,6 +29,7 @@ import numpy as np                                     # noqa: E402
 import pytest                                          # noqa: E402
 
 from tests.reference_io import make_D                  # noqa: E402
+from tools.unites import MILLIMETRE, entrees_vers_si    # noqa: E402
 
 P_AMB = 101325.0
 RHO = 973.0
@@ -53,21 +54,31 @@ def delta_P(n, K, De, L, v, Noz_type="cylindrical", Do=3.55, alpha=1,
     Returns:
         float: Delta_P = P - P_amb. [Pa]
 
-    Unites : celles du code actuel, mm pour la geometrie et SI pour le reste.
+    Les arguments geometriques sont exprimes en mm, comme une buse se mesure
+    a l'atelier. La conversion vers le SI a lieu ici, par la meme frontiere
+    que celle de main.py, et le modele appele travaille en SI strict.
     """
     import main                                        # noqa: PLC0415
-    D = make_D(De, Do, alpha, ERREUR_D)
+    D_si, L_si, v_si = entrees_vers_si(
+        make_D(De, Do, alpha, ERREUR_D),
+        np.array([float(L), 0.01]),
+        np.array([float(v)]))
     with contextlib.redirect_stdout(io.StringIO()):
         resultat = main.compute_pressures(
-            RHO, np.array([float(v)]), D, np.array([float(L), 0.01]),
-            math.radians(ANGLE_DEG), n, K, eta_0, eta_inf, tau_0, lmbda, a,
-            P_AMB, Noz_type, 0.0, 0.0, alpha, False)
+            RHO, v_si, D_si, L_si, math.radians(ANGLE_DEG), n, K, eta_0,
+            eta_inf, tau_0, lmbda, a, P_AMB, Noz_type, 0.0, 0.0, alpha, False)
     return float(resultat["P"][0]) - P_AMB
 
 
-def debit(De, v):
-    """Debit volumique d'une buse. [mm^3/s]"""
-    return math.pi * 0.25 * De ** 2 * v
+def en_metres(longueur_mm):
+    """Longueur de mm vers m, pour ecrire les solutions analytiques en SI."""
+    return float(longueur_mm) * MILLIMETRE
+
+
+def debit(De_mm, v_mm_par_s):
+    """Debit volumique d'une buse, a partir de grandeurs en mm. [m^3/s]"""
+    return (math.pi * 0.25 * en_metres(De_mm) ** 2
+            * en_metres(v_mm_par_s))
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +99,8 @@ def test_T1_newtonien_hagen_poiseuille(eta, De, L, v):
     la chaine du modele doit se reduire exactement a Hagen-Poiseuille.
     """
     obtenu = delta_P(n=1.0, K=0.0, De=De, L=L, v=v, eta_inf=eta)
-    attendu = 128 * eta * L * debit(De, v) / (math.pi * De ** 4)
+    attendu = (128 * eta * en_metres(L) * debit(De, v)
+               / (math.pi * en_metres(De) ** 4))
     assert obtenu == pytest.approx(attendu, rel=1e-12), (
         f"\nHagen-Poiseuille : attendu {attendu!r}, obtenu {obtenu!r}, "
         f"ecart relatif {(obtenu - attendu) / attendu:.3e}")
@@ -124,8 +136,8 @@ def test_T2_loi_de_puissance_cylindre(n, K, De, L, v):
     le reparer avant toute autre chose.
     """
     Q = debit(De, v)
-    gamma_w = ((3 * n + 1) / (4 * n)) * 32 * Q / (math.pi * De ** 3)
-    attendu = 4 * L * K * gamma_w ** n / De
+    gamma_w = ((3 * n + 1) / (4 * n)) * 32 * Q / (math.pi * en_metres(De) ** 3)
+    attendu = 4 * en_metres(L) * K * gamma_w ** n / en_metres(De)
     obtenu = delta_P(n=n, K=K, De=De, L=L, v=v)
     assert obtenu == pytest.approx(attendu, rel=1e-12), (
         f"\nDouble facteur de Rabinowitsch rompu.\n"
