@@ -15,6 +15,21 @@ def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
         R_eq (numeric): Equivalent hydraulic resistance
         Ri (array-like): Individual hydraulic resistance for each nozzle
 
+    Référence:
+        J.-F. Chauvette, thèse de doctorat, Polytechnique Montréal (2023),
+        section 4.3.1.1, équation 4.4, elle-même référencée [38] :
+
+            R_i = (128 L eta_i / (pi D_avg^4)) * ((3 + 1/n)/4)
+
+        Le facteur (3 + 1/n)/4 apparaît ici ET sur le taux de cisaillement
+        dans calculateSR (équation 4.2). Ce n'est PAS un doublon : la
+        composition des deux redonne la solution analytique d'une loi de
+        puissance en conduite cylindrique,
+
+            Delta_P = 4 L K gamma_point_paroi^n / D
+
+        Ne jamais retirer l'un des deux facteurs. Voir CLAUDE.md.
+
         Author: David Brzeski, Jean-François Chauvette, Raphaël Plante
             %Date: June 13, 2020 - February 13, 2024
     """
@@ -56,7 +71,8 @@ def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
 
             # Calculate equivalent hydraulic resistance for nozzles in parallel
             R_eq = 1/np.sum(1/Ri)
-            rabi = (3 + (1 / n)) / 4   # Weissenberg-Rabinowitsch correction
+            # Weissenberg-Rabinowitsch correction (Chauvette 2023, éq. 4.4)
+            rabi = (3 + (1 / n)) / 4
             R_eq = R_eq * rabi
             Ri = Ri * rabi
 
