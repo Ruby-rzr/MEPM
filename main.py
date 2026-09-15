@@ -17,6 +17,9 @@
 
 from Velocity_driven import generateP, calculateQ
 from tools import readMaterial, comparePlotPV, comparePlotVisco, comparePlotQ, printTableInConsole
+from Velocity_driven.modeles import (
+    deduire_mode_historique, deduire_modele_historique)
+from tools.readMaterial import INCERTITUDES_HISTORIQUES
 from tools.unites import KILO, entrees_vers_si
 import numpy as np
 import math
@@ -103,7 +106,8 @@ def open_material_file():
 
 # def compute_overall_p(v, rho, D_avg, L, n, K, eta_0, eta_inf, tau_0, lambda_, a, P_amb, debug_mode=False):
 def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a,
-                      P_amb, Noz_type, R, mP, alpha, debug_mode=False):
+                      P_amb, Noz_type, R, mP, alpha, debug_mode=False,
+                      modele=None, mode=None, incertitudes=None):
     """
     Computes overall pressure for each velocity in v and retrieves viscosity/shear rate data.
 
@@ -151,6 +155,14 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
         mP (float): Exposant ajusté empiriquement, base de matériaux. [-]
         alpha (int): Number of nozzles.
         debug_mode (bool, optional): Enable debug output (defaults to False).
+        modele (str): loi rhéologique explicite, voir Velocity_driven.modeles.
+            Obligatoire. La valeur par défaut None n'existe que pour garder
+            l'ordre des arguments positionnels hérités.
+        mode (str): ANALYTIQUE ou EMPIRIQUE, voir Velocity_driven.modeles.
+            Obligatoire, même remarque.
+        incertitudes (dict): incertitudes sur les paramètres du matériau,
+            voir calculateVisco. Un dictionnaire vide annule toutes les
+            contributions.
 
     Returns:
         dict: dictionnaire contenant :
@@ -181,7 +193,8 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
         try:
             # Ordre de retour de generateP : P, eta, SR, Q, deta, dP, dRi, dSR.
             newP, newEta, newSR, newQ, newdEta, newdP, newdRi, newdSR = generateP.generateP(
-                rho, v[i], D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP, debug_mode)
+                rho, v[i], D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP, debug_mode,
+                modele, mode, incertitudes)
             P[i] = newP
             eta[i] = newEta
             SR[i] = newSR
@@ -224,7 +237,8 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
 
 def executer_sur_saisie_mm(rho, v_mm, D_mm, L_mm, theta, n, K, eta_0, eta_inf,
                            tau_0, lmbda, a, P_amb, Noz_type, R, mP, alpha,
-                           debug_mode=False):
+                           debug_mode=False, modele=None, mode=None,
+                           incertitudes=None):
     """Frontière d'entrée du modèle : convertit la saisie en mm puis calcule.
 
     La géométrie d'une buse se mesure en mm et une vitesse d'impression
@@ -250,7 +264,7 @@ def executer_sur_saisie_mm(rho, v_mm, D_mm, L_mm, theta, n, K, eta_0, eta_inf,
     D_si, L_si, v_si = entrees_vers_si(D_mm, L_mm, v_mm)
     return compute_pressures(rho, v_si, D_si, L_si, theta, n, K, eta_0,
                              eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP,
-                             alpha, debug_mode)
+                             alpha, debug_mode, modele, mode, incertitudes)
 
 
 if __name__ == "__main__":
@@ -292,9 +306,14 @@ if __name__ == "__main__":
         # ... (add print statements for other properties)
         # D, L et v sont saisis en mm plus haut dans ce fichier. La
         # conversion vers le SI a lieu dans executer_sur_saisie_mm.
+        # Choix explicites, déduits ici de l'ancienne base materials.xls.
+        modele = deduire_modele_historique(n, K, eta_inf, eta_0, tau_0, lmbda, a)
+        mode = deduire_mode_historique(R, mP)
         results = executer_sur_saisie_mm(rho, v, D, L, theta, n, K, eta_0,
                                          eta_inf, tau_0, lmbda, a, P_amb,
-                                         Noz_type, R, mP, alpha, debug_mode)
+                                         Noz_type, R, mP, alpha, debug_mode,
+                                         modele, mode,
+                                         INCERTITUDES_HISTORIQUES)
         P = results["P_kPa"]
         eta = results["eta"]
         SR = results["SR"]

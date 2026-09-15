@@ -185,3 +185,40 @@ est restée verte**, parce qu'elle emprunte `tests/reference_io.execute` et non
    le chemin de production de bout en bout, pas seulement le chemin du harnais
    de test. C'est l'objet de `tests/test_frontiere_saisie.py`, à étendre à
    chaque nouveau chemin de production.
+
+## Modèle rhéologique et mode de calcul
+
+Les deux sont des **champs explicites**, plus jamais devinés.
+
+| Champ | Valeurs | Où |
+|---|---|---|
+| `modele` | `sisko`, `newtonien`, `loi_de_puissance`, `carreau`, `bingham`, `herschel_bulkley`, `herschel_bulkley_etendu` | `Velocity_driven/modeles.py` |
+| `mode` | `analytique`, `empirique` | idem |
+
+La cascade de `if` qui devinait la loi d'après les paramètres nuls survit dans
+`deduire_modele_historique`, isolée et réservée à la lecture de l'ancienne base
+`materials.xls`. C'est le seul endroit du dépôt où quelque chose est encore
+deviné, et il n'a pas vocation à en sortir.
+
+Les deux interrupteurs indépendants `if R != 0` et `if mP != 0` donnaient
+quatre combinaisons, dont deux sans aucun sens et silencieuses. Elles lèvent
+désormais une erreur : un matériau dont un seul des deux paramètres ajustés est
+renseigné est une donnée incomplète, pas un troisième mode de calcul.
+
+### La branche empirique n'est pas publiable
+
+`FACTEUR_UNITES_AJUSTEMENT_EMPIRIQUE`, dans `calculatePrequired`, vaut `10**6`
+et n'est dérivé d'aucune équation physique. Il est imposé par la convention
+d'unités dans laquelle `R` et `mP` ont été ajustés, et il est solidaire de
+leurs valeurs. Sa provenance est **perdue** : le script d'ajustement est absent
+du dépôt et l'auteur du portage, interrogé, ne la connaît pas.
+
+**Le mode empirique est NON PUBLIABLE en l'état et ne doit alimenter aucune
+figure destinée à un article.** Il reste fonctionnel pour la compatibilité avec
+les résultats antérieurs, rien de plus. Le mode imprime un avertissement à
+l'exécution, conformément à la règle 3.
+
+Le remplacement est prévu en phase 8 : réajustement de `R` et `mP` sur des
+pressions mesurées, par un script versionné, en SI. La provenance redevient
+alors connue et le facteur disparaît par construction. Un paramètre orphelin ne
+se répare pas, il se remplace.

@@ -27,6 +27,10 @@ HISTORIQUE DES MISES A JOUR, chacune consentie apres declenchement du test.
   defauts #10 et #19   240 occurrences, 29 cas. Dix cas de plus, qui levaient
                auparavant une exception et qui calculent desormais. La cause
                est inchangee.
+  choix explicites   192 occurrences, 17 cas. Douze cas de moins : les
+               combinaisons aberrantes mP_seul_aberrant, ou une resistance
+               predite etait elevee a un exposant ajuste, levent desormais une
+               erreur au lieu de calculer. La cause est inchangee.
 
 Le jeu des cas emetteurs n'est plus fige sous forme de liste : il est DERIVE
 DE LA CAUSE, a savoir une buse conique dont la resistance analytique vaut zero
@@ -58,10 +62,10 @@ from tests.reference_io import execute                 # noqa: E402
 # Signatures attendues : (categorie, fichier, message).
 SIGNATURES_ATTENDUES = {
     ("RuntimeWarning", "calculateReqError.py",
-     "invalid value encountered in divide"): 240,
+     "invalid value encountered in divide"): 192,
 }
 
-NOMBRE_DE_CAS_ATTENDU = 29
+NOMBRE_DE_CAS_ATTENDU = 17
 
 
 def cas_a_resistance_conique_nulle(reference):
@@ -135,7 +139,7 @@ def test_signatures_et_comptes(avertissements_captures):
         "\nLes avertissements emis ont change.\n"
         f"  obtenu  : {dict(total)}\n"
         f"  attendu : {SIGNATURES_ATTENDUES}")
-    assert sum(total.values()) == 240
+    assert sum(total.values()) == 192
 
 
 def test_occurrences_par_cas(avertissements_captures):

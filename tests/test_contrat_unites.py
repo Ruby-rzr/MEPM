@@ -42,19 +42,25 @@ from tests.contrat_unites import (                      # noqa: E402
     GRANDEURS_RENDUES_PAR_GENERATEP)
 
 CONTRAT = CORRESPONDANCES_CONNUES[CORRESPONDANCE_ACTUELLE]
+from Velocity_driven.modeles import (                    # noqa: E402
+    ANALYTIQUE, EMPIRIQUE, LOI_DE_PUISSANCE)
 from tests.reference_io import CHAMPS_NUMERIQUES, make_D  # noqa: E402
+from tools.readMaterial import INCERTITUDES_HISTORIQUES   # noqa: E402
 from tools.unites import entrees_vers_si                # noqa: E402
 
 # Un cas par branche du modele, pour que le verrou porte sur toutes.
 CAS = [
-    ("cylindrique", dict(Noz_type="cylindrical", n=0.49, K=3280.0, R=0.0, mP=0.0)),
-    ("conique analytique", dict(Noz_type="tapered", n=0.49, K=3280.0, R=0.0, mP=0.0)),
+    ("cylindrique", dict(Noz_type="cylindrical", n=0.49, K=3280.0, R=0.0,
+                         mP=0.0, mode=ANALYTIQUE)),
+    ("conique analytique", dict(Noz_type="tapered", n=0.49, K=3280.0, R=0.0,
+                                mP=0.0, mode=ANALYTIQUE)),
     ("conique empirique", dict(Noz_type="tapered", n=0.3575, K=6673.0,
-                               R=1.548459269275235, mP=0.34455727852674917)),
+                               R=1.548459269275235, mP=0.34455727852674917,
+                               mode=EMPIRIQUE)),
 ]
 
 
-def _execute(Noz_type, n, K, R, mP):
+def _execute(Noz_type, n, K, R, mP, mode):
     """Rend (sorties de compute_pressures, sorties de generateP) sur un cas."""
     import main                                        # noqa: PLC0415
     from Velocity_driven import generateP              # noqa: PLC0415
@@ -66,11 +72,12 @@ def _execute(Noz_type, n, K, R, mP):
         np.array([100.0]))
     args = (973.0, D_si, L_si, math.radians(5.3), n, K, 0.0, 0.0, 0.0, 0.0,
             0.0, 101325.0, Noz_type, R, mP)
+    choix = (LOI_DE_PUISSANCE, mode, INCERTITUDES_HISTORIQUES)
     with contextlib.redirect_stdout(io.StringIO()):
         dictionnaire = main.compute_pressures(
-            args[0], v_si, *args[1:], alpha, False)
+            args[0], v_si, *args[1:], alpha, False, *choix)
         tuple_generateP = generateP.generateP(
-            args[0], float(v_si[0]), *args[1:], False)
+            args[0], float(v_si[0]), *args[1:], False, *choix)
     return dictionnaire, tuple_generateP
 
 

@@ -10,7 +10,7 @@ mepm_path = r"C:\Users\anirb\OneDrive\Desktop\Additive Nozzle Manufacturing\CODE
 sys.path.append(mepm_path)
 
 
-def generateP(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP, debug_mode):
+def generateP(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP, debug_mode, modele, mode, incertitudes):
     """
     generateP function's purpose is to regroup all the necessary function calls in order to calculate the required pressure for a given material 
     and nozzle exit velocity. It validates the Reynold numbers. Finally, it returns the required Pressure along with Viscosities and Shear rates 
@@ -40,6 +40,10 @@ def generateP(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb,
         R (numeric): Resistance ajustee empiriquement. Unite indeterminee.
         mP (numeric): Exposant ajuste empiriquement. [-]
         debug_mode (bool): Flag for printing debug information
+        modele (str): loi rheologique explicite, voir Velocity_driven.modeles.
+        mode (str): ANALYTIQUE ou EMPIRIQUE, voir Velocity_driven.modeles.
+        incertitudes (dict): incertitudes sur les parametres du materiau,
+            voir calculateVisco.
 
     Outputs:
         P (numeric): Required pressure. [Pa]
@@ -79,7 +83,8 @@ def generateP(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb,
 
     # Viscosity computation
     eta, deta = calculateVisco.calculateVisco(
-        SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode, dSR)
+        SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, modele, incertitudes,
+        debug_mode, dSR)
 
     if debug_mode:
         print('Viscosities (Pa.s):')
@@ -97,7 +102,7 @@ def generateP(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb,
 
         # Equivalent flow resistance computation
         R_eq, Ri = calculateReq.calculateReq(
-            eta, theta, K, n, L, D, Noz_type, R)
+            eta, theta, K, n, L, D, Noz_type, R, mode)
 
         R_eq_error, dRi = calculateReqError.calculateReqError(
             R_eq, Ri, D.shape[1], D, L, eta, deta)
@@ -109,7 +114,7 @@ def generateP(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb,
 
         # Required pressure computation
         P = calculatePrequired.calculatePrequired(
-            R_eq, Q_eq, P_amb, n, mP, Noz_type, R)
+            R_eq, Q_eq, P_amb, n, mP, Noz_type, R, mode)
         dP = np.sqrt((R_eq_error * Q_eq)**2 + (R_eq * np.sum(dQ))**2)
         print(f'Required pressure (Pa) = {P:.0f}')
     else:  # Transition flow, turbulent flow or negative Reynolds

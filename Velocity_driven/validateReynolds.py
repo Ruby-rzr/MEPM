@@ -1,5 +1,21 @@
 import numpy as np
 
+# ---------------------------------------------------------------------------
+# Seuils de regime d'ecoulement.
+#
+# Regle 5 de CLAUDE.md : aucune valeur numerique en dur dans le code de calcul.
+# Ces deux seuils etaient ecrits en dur dans les comparaisons ci-dessous. Ils
+# sont nommes ici, LEURS VALEURS SONT INCHANGEES.
+#
+# Ils ne sont derives d'aucune equation. Le seuil haut de 2500 est proche de la
+# valeur usuelle de transition en conduite lisse, de l'ordre de 2100 a 2300. Le
+# seuil bas de 100, qui declenche le rejet du calcul, est tres conservateur et
+# sa provenance n'est pas etablie dans ce depot. Aucun ecoulement de ce modele
+# n'en approche : les nombres de Reynolds rencontres valent 1e-4 ou moins.
+REYNOLDS_LAMINAIRE_MAXIMAL = 100      # [-]
+REYNOLDS_TURBULENT_MINIMAL = 2500     # [-]
+
+
 def validateReynolds(rho, v, D, eta, debug_mode=False):
     """
     validateReynolds is the function used to validate whether a laminar flow is occurring in the nozzles of the robot. Upon validation, the Hagen-
@@ -55,17 +71,19 @@ def validateReynolds(rho, v, D, eta, debug_mode=False):
             # Pa.s, le quotient est directement adimensionnel.
             Re = rho * v * D / eta
 
-            if np.all(Re > 0) and np.all(Re < 100):  # Laminar
+            if np.all(Re > 0) and np.all(Re < REYNOLDS_LAMINAIRE_MAXIMAL):  # Laminar
                 typeEcoul = 0
                 if debug_mode:
                     print('All flow rates are laminar')
-            elif np.any((Re >= 100) & (Re <= 2500)):  # Transition
+            elif np.any((Re >= REYNOLDS_LAMINAIRE_MAXIMAL)
+                        & (Re <= REYNOLDS_TURBULENT_MINIMAL)):  # Transition
                 typeEcoul = 1
-                pos = np.where((Re >= 100) & (Re <= 2500))[0]
+                pos = np.where((Re >= REYNOLDS_LAMINAIRE_MAXIMAL)
+                               & (Re <= REYNOLDS_TURBULENT_MINIMAL))[0]
                 print('The flow is in the transition zone for nozzles #', pos)
-            elif np.any(Re > 2500):  # Turbulent
+            elif np.any(Re > REYNOLDS_TURBULENT_MINIMAL):  # Turbulent
                 typeEcoul = 2
-                pos = np.where(Re > 2500)[0]
+                pos = np.where(Re > REYNOLDS_TURBULENT_MINIMAL)[0]
                 print('The flow is turbulent for nozzles #', pos)
             else:  # Negative Re number
                 typeEcoul = np.nan

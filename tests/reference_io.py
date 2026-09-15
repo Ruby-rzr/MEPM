@@ -38,7 +38,7 @@ if RACINE not in sys.path:
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 # Reference rejouee par tests/test_regression.py.
-VERSION_ACTIVE = "reference_v7_defauts14_15"
+VERSION_ACTIVE = "reference_v8_choix_explicites"
 
 # Champs numeriques enregistres pour un cas dont le calcul aboutit.
 CHAMPS_NUMERIQUES = ("P", "P_kPa", "eta", "SR", "Q", "dP", "dP_kPa",
@@ -225,7 +225,10 @@ def execute(entrees, parametres_materiau=None):
         dict: bloc 'sorties' au format des references, en SI.
     """
     import main                              # noqa: PLC0415
+    from Velocity_driven.modeles import (    # noqa: PLC0415
+        deduire_mode_historique, deduire_modele_historique)
     from tools import readMaterial           # noqa: PLC0415
+    from tools.readMaterial import INCERTITUDES_HISTORIQUES  # noqa: PLC0415
     from tools.unites import entrees_vers_si  # noqa: PLC0415
 
     D_mm = construit_D(entrees["D_description"])
@@ -265,11 +268,18 @@ def execute(entrees, parametres_materiau=None):
         resultat["R"] = float(R)
         resultat["mP"] = float(mP)
 
+    # Les references decrivent l'ANCIENNE base, qui ne porte ni modele ni mode.
+    # Ils sont deduits ici par les adaptateurs de compatibilite, seul endroit
+    # du depot ou quelque chose est encore devine.
     try:
         with contextlib.redirect_stdout(io.StringIO()):
+            modele = deduire_modele_historique(n, K, eta_inf, eta_0, tau_0,
+                                               lmbda, a)
+            mode = deduire_mode_historique(R, mP)
             sorties = main.compute_pressures(
                 rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a,
-                entrees["P_amb"], entrees["Noz_type"], R, mP, alpha, False)
+                entrees["P_amb"], entrees["Noz_type"], R, mP, alpha, False,
+                modele, mode, INCERTITUDES_HISTORIQUES)
     except Exception as exc:                  # noqa: BLE001
         resultat["calcul"] = dict(statut="exception",
                                   type=type(exc).__name__,

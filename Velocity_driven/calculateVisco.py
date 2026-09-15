@@ -1,35 +1,32 @@
 import numpy as np
 
-# ---------------------------------------------------------------------------
-# Incertitudes supposees sur les parametres rheologiques.
-#
-# Ces valeurs ne sont derivees d'aucune equation physique : ce sont des
-# incertitudes de mesure supposees, presentes en dur dans le code d'origine et
-# reprises ici a l'identique. Elles violent la regle 5 de CLAUDE.md, qui
-# interdit toute valeur numerique en dur dans le code de calcul : elles
-# devraient venir de la base de materiaux, par materiau. Les nommer et les
-# remonter ici est la premiere etape, leur deplacement vers materials.xls et
-# leur signalement a l'execution, exiges par la regle 3, restent a faire.
-#
-# LEURS VALEURS NE SONT PAS MODIFIEES. Elles n'interviennent que dans le
-# calcul des incertitudes deta, jamais dans eta, donc jamais dans la pression.
-#
-# Unites : celles des grandeurs auxquelles elles se rapportent.
-INCERTITUDE_K = 0.1           # sur l'indice de consistance K. [Pa.s^n]
-INCERTITUDE_N = 0.0001        # sur l'indice d'ecoulement n. [-]
-INCERTITUDE_ETA_INF = 0       # sur la viscosite infinie. [Pa.s]
-INCERTITUDE_ETA_0 = 0         # sur la viscosite au repos. [Pa.s]
-INCERTITUDE_LAMBDA = 0        # sur le temps de relaxation. [s]
-INCERTITUDE_A = 0             # sur l'exposant du modele de Carreau. [-]
-INCERTITUDE_TAU_0 = 0         # sur le seuil d'ecoulement. [Pa]
+from Velocity_driven.modeles import (
+    BINGHAM, CARREAU, HERSCHEL_BULKLEY, HERSCHEL_BULKLEY_ETENDU,
+    LOI_DE_PUISSANCE, NEWTONIEN, SISKO, valide_modele)
+
+# Cles attendues du dictionnaire d'incertitudes, et unite de chacune.
+CLES_INCERTITUDES = ("K", "n", "eta_inf", "eta_0", "tau_0", "lambda", "a")
 
 
-def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, dSR=None):
+def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, modele,
+                   incertitudes, debug_mode=False, dSR=None):
     """
     calculateVisco is the function used to obtain the apparent viscosity inside every nozzle, depending on the material's behavior law.
 
     Unites : SI strict. Toutes les grandeurs de cette fonction sont deja en
-    SI dans materials.xls, aucune conversion n'a lieu ici.
+    SI dans la base de materiaux, aucune conversion n'a lieu ici.
+
+    CHOIX EXPLICITE DU MODELE, phase 5. La loi rheologique etait auparavant
+    DEVINEE par une cascade de `if` testant quels parametres valaient zero.
+    Un parametre laisse a zero par oubli changeait silencieusement la loi
+    appliquee. Le modele est desormais un argument obligatoire. La cascade
+    subsiste dans Velocity_driven.modeles.deduire_modele_historique, isolee et
+    reservee a la lecture de l'ancienne base materials.xls.
+
+    INCERTITUDES, regle 5 de CLAUDE.md. Elles ne sont plus des constantes du
+    code : ce sont des proprietes du materiau et de son ajustement, fournies
+    par la base par l'intermediaire du dictionnaire `incertitudes`. Une
+    incertitude absente vaut zero, ce qui annule sa contribution.
 
     Inputs:
         SR (array-like): Shear rate. [1/s]
@@ -40,6 +37,10 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
         tau_0 (numeric): Creep factor. [Pa]
         lmbda (numeric): Relaxation time. [s]
         a (numeric): Carreau model exponent. [-]
+        modele (str): loi rheologique, l'une de Velocity_driven.modeles.MODELES.
+        incertitudes (dict): incertitudes sur les parametres du materiau, aux
+            cles CLES_INCERTITUDES, chacune dans l'unite du parametre
+            correspondant. Une cle absente vaut zero.
         debug_mode (bool): Flag to print debug information
         dSR (array-like): Error in shear rate array. [1/s]
             Obligatoire. Provient de calculateSR. DEFAUT #14 corrige en
@@ -53,8 +54,15 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
         Author: David Brzeski, Jean-François Chauvette, Raphaël Plante
             %Date: June 13, 2020 - February 13, 2024
     """
-    dK = INCERTITUDE_K
-    dn = INCERTITUDE_N
+    valide_modele(modele)
+    incertitudes = dict(incertitudes or {})
+    inconnues = set(incertitudes) - set(CLES_INCERTITUDES)
+    if inconnues:
+        raise ValueError(f"Incertitudes inconnues : {sorted(inconnues)}. "
+                         f"Cles admises : {list(CLES_INCERTITUDES)}.")
+
+    dK = incertitudes.get("K", 0.0)
+    dn = incertitudes.get("n", 0.0)
     # DEFAUT #14 corrige : l'incertitude sur le taux de cisaillement, propagee
     # depuis calculateSR, est desormais UTILISEE. Elle etait ecrasee ici par
     # une constante en dur de 1e-4, ce qui la reduisait a zero en pratique.
@@ -64,11 +72,11 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
             "doit etre propagee depuis calculateSR, elle n'a pas de valeur "
             "par defaut defendable.")
     dSR = np.asarray(dSR, dtype=float)
-    deta_inf = INCERTITUDE_ETA_INF
-    deta_0 = INCERTITUDE_ETA_0
-    dlambda = INCERTITUDE_LAMBDA
-    da = INCERTITUDE_A
-    dtau_0 = INCERTITUDE_TAU_0
+    deta_inf = incertitudes.get("eta_inf", 0.0)
+    deta_0 = incertitudes.get("eta_0", 0.0)
+    dlambda = incertitudes.get("lambda", 0.0)
+    da = incertitudes.get("a", 0.0)
+    dtau_0 = incertitudes.get("tau_0", 0.0)
 
     # Ensure SR does not contain zero to avoid log(0) issues
     if np.any(SR == 0):
@@ -80,28 +88,28 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
             and isinstance(a, (int, float)):
 
         # Sisko model
-        if n != 0 and K != 0 and eta_inf != 0 and eta_0 == 0 and tau_0 == 0 and lmbda == 0 and a == 0:
+        if modele == SISKO:
             eta = K * SR ** (n - 1) + eta_inf  
             deta = np.sqrt((SR ** (n - 1) * dK) ** 2 + (K * (n - 1) * SR ** (n - 2) * dSR) ** 2 + (K * SR ** (n - 1) * np.log(SR) * dn) ** 2 + deta_inf ** 2)
             if debug_mode:
                 print('Sisko model is used')
 
         # Newtonian model
-        elif n == 1 and K == 0 and eta_inf != 0 and eta_0 == 0 and tau_0 == 0 and lmbda == 0 and a == 0:
+        elif modele == NEWTONIEN:
             eta = eta_inf * np.ones(SR.shape)  
             deta = deta_inf * np.ones(SR.shape)
             if debug_mode:
                 print('Newtonian model is used')
 
         # Pure power law model
-        elif n != 0 and K != 0 and eta_inf == 0 and eta_0 == 0 and tau_0 == 0 and lmbda == 0 and a == 0:
+        elif modele == LOI_DE_PUISSANCE:
             eta = K * SR ** (n - 1)  
             deta = np.sqrt((SR ** (n - 1) * dK) ** 2 + (K * (n - 1) * SR ** (n - 2) * dSR) ** 2 + (K * SR ** (n - 1) * np.log(SR) * dn) ** 2)
             if debug_mode:
                 print('Ostwald-de-Waele model (pure power law) is used')
 
         # Carreau model
-        elif n != 0 and K == 0 and eta_inf != 0 and eta_0 != 0 and tau_0 == 0 and lmbda != 0 and a != 0:
+        elif modele == CARREAU:
             eta = eta_inf + (eta_0 - eta_inf) * (1 + (lmbda * SR) ** a) ** ((n - 1) / a)  
             ratio = 1 + (lmbda * SR) ** a
             deta1 = ((1 - ratio ** ((n - 1) / a)) * deta_inf) ** 2
@@ -114,14 +122,14 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
                 print('Carreau model is used')
 
         # Bingham model
-        elif n == 1 and K == 0 and eta_inf != 0 and eta_0 == 0 and tau_0 != 0 and lmbda == 0 and a == 0:
+        elif modele == BINGHAM:
             eta = tau_0 / SR + eta_inf  
             deta = np.sqrt((dtau_0 / SR) ** 2 + (tau_0 * dSR / SR ** 2) ** 2 + (deta_inf) ** 2)
             if debug_mode:
                 print('Bingham model is used')
 
         # Herschell-Bulkley extended model
-        elif n != 0 and K != 0 and eta_inf != 0 and eta_0 == 0 and tau_0 != 0 and lmbda == 0 and a == 0:
+        elif modele == HERSCHEL_BULKLEY_ETENDU:
             eta = tau_0 / SR + K * SR ** (n - 1) + eta_inf
             # DEFAUT #15 corrige. Derivees partielles de
             #   eta = tau_0/SR + K SR^(n-1) + eta_inf
@@ -145,7 +153,7 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
                 print('Herschell-Bulkley extended model is used')
 
         # Herschell-Bulkley model
-        elif n != 0 and K != 0 and eta_inf == 0 and eta_0 == 0 and tau_0 != 0 and lmbda == 0 and a == 0:
+        elif modele == HERSCHEL_BULKLEY:
             eta = tau_0 / SR + K * SR ** (n - 1)
             # DEFAUT #15 corrige, meme correction que la branche etendue
             # ci-dessus, sans le terme en eta_inf.
@@ -157,7 +165,7 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
             if debug_mode:
                 print('Herschell-Bulkley model is used')
         else:
-            raise ValueError('No model was found for your material')
+            raise ValueError(f'No model was found for your material: {modele!r}')
 
         return eta, deta
 

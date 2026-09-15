@@ -35,8 +35,13 @@ if RACINE not in sys.path:
 import numpy as np                                     # noqa: E402
 import pytest                                          # noqa: E402
 
+from Velocity_driven.modeles import (                  # noqa: E402
+    ANALYTIQUE, LOI_DE_PUISSANCE)
 from tests.reference_io import make_D                  # noqa: E402
+from tools.readMaterial import INCERTITUDES_HISTORIQUES  # noqa: E402
 from tools.unites import entrees_vers_si               # noqa: E402
+
+CHOIX = (LOI_DE_PUISSANCE, ANALYTIQUE, INCERTITUDES_HISTORIQUES)
 
 # Grandeurs de saisie, en mm et mm/s, comme dans main.py.
 V_MM = np.array([10.0, 50.0, 100.0, 300.0])
@@ -52,7 +57,7 @@ def test_executer_sur_saisie_mm_convertit_bien(Noz_type):
     alpha = 4
     D_mm = make_D(0.45, 3.55, alpha, 0.001)
     args = (0.49, 3280.0, 0.0, 0.0, 0.0, 0.0, 0.0, P_AMB, Noz_type, 0.0, 0.0,
-            alpha, False)
+            alpha, False) + CHOIX
 
     with contextlib.redirect_stdout(io.StringIO()):
         par_frontiere = main.executer_sur_saisie_mm(
@@ -83,7 +88,7 @@ def test_saisie_en_mm_donne_un_resultat_physique(Noz_type):
     with contextlib.redirect_stdout(io.StringIO()):
         resultat = main.executer_sur_saisie_mm(
             973.0, V_MM, D_mm, L_MM, THETA, 0.49, 3280.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, P_AMB, Noz_type, 0.0, 0.0, alpha, False)
+            0.0, P_AMB, Noz_type, 0.0, 0.0, alpha, False, *CHOIX)
 
     P = np.asarray(resultat["P"], dtype=float)
     assert np.all(np.isfinite(P)), (
@@ -108,7 +113,7 @@ def test_compute_pressures_en_mm_produit_un_resultat_faux():
         faux = main.compute_pressures(
             973.0, V_MM, make_D(0.45, 3.55, alpha, 0.001), L_MM, THETA,
             0.49, 3280.0, 0.0, 0.0, 0.0, 0.0, 0.0, P_AMB, "cylindrical",
-            0.0, 0.0, alpha, False)
+            0.0, 0.0, alpha, False, *CHOIX)
     assert np.all(np.isnan(np.asarray(faux["P"], dtype=float))), (
         "le symptome a change : les pressions calculees en mm ne sont plus "
         "des NaN. Le garde-fou de Reynolds ne rattrape donc plus l'erreur, "

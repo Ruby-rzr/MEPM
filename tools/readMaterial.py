@@ -1,5 +1,27 @@
 import pandas as pd
 
+# ---------------------------------------------------------------------------
+# Incertitudes de l'ANCIENNE base, materials.xls.
+#
+# materials.xls ne porte aucune colonne d'incertitude. Ces valeurs etaient
+# ecrites en dur dans calculateVisco. Elles sont conservees ici, a l'identique,
+# parce qu'elles font partie de l'artefact gele : les references historiques ne
+# seraient plus reproductibles sans elles.
+#
+# Elles ne sont derivees d'aucune equation et leur provenance n'est pas etablie
+# dans ce depot. La nouvelle base, materiaux.xlsx, porte une colonne
+# d'incertitude par parametre, ces grandeurs etant des proprietes du materiau
+# et de son ajustement, non du code.
+INCERTITUDES_HISTORIQUES = {
+    "K": 0.1,        # [Pa.s^n]
+    "n": 0.0001,     # [-]
+    "eta_inf": 0.0,  # [Pa.s]
+    "eta_0": 0.0,    # [Pa.s]
+    "tau_0": 0.0,    # [Pa]
+    "lambda": 0.0,   # [s]
+    "a": 0.0,        # [-]
+}
+
 
 def readMaterial(file, sheet):
     """Lit les proprietes d'un materiau dans une feuille de materials.xls.

@@ -28,7 +28,10 @@ if RACINE not in sys.path:
 import numpy as np                                     # noqa: E402
 import pytest                                          # noqa: E402
 
+from Velocity_driven.modeles import (                   # noqa: E402
+    ANALYTIQUE, deduire_modele_historique)
 from tests.reference_io import make_D                  # noqa: E402
+from tools.readMaterial import INCERTITUDES_HISTORIQUES  # noqa: E402
 from tools.unites import MILLIMETRE, entrees_vers_si    # noqa: E402
 
 P_AMB = 101325.0
@@ -63,10 +66,12 @@ def delta_P(n, K, De, L, v, Noz_type="cylindrical", Do=3.55, alpha=1,
         make_D(De, Do, alpha, ERREUR_D),
         np.array([float(L), 0.01]),
         np.array([float(v)]))
+    modele = deduire_modele_historique(n, K, eta_inf, eta_0, tau_0, lmbda, a)
     with contextlib.redirect_stdout(io.StringIO()):
         resultat = main.compute_pressures(
             RHO, v_si, D_si, L_si, math.radians(ANGLE_DEG), n, K, eta_0,
-            eta_inf, tau_0, lmbda, a, P_AMB, Noz_type, 0.0, 0.0, alpha, False)
+            eta_inf, tau_0, lmbda, a, P_AMB, Noz_type, 0.0, 0.0, alpha, False,
+            modele, ANALYTIQUE, INCERTITUDES_HISTORIQUES)
     return float(resultat["P"][0]) - P_AMB
 
 

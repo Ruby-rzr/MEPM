@@ -1,5 +1,6 @@
 import numpy as np
 
+from Velocity_driven.modeles import ANALYTIQUE, EMPIRIQUE, valide_mode
 from tools.unites import MILLIMETRE_CUBE
 
 # ---------------------------------------------------------------------------
@@ -25,7 +26,27 @@ from tools.unites import MILLIMETRE_CUBE
 FACTEUR_UNITES_AJUSTEMENT_EMPIRIQUE = 10**6
 
 
-def calculatePrequired(R_eq, Q_eq, P_amb, n, mP, Noz_type, R):
+def avertit_mode_empirique(R, mP):
+    """Signale a l'execution que la sortie n'est PAS une prediction.
+
+    Regle 3 de CLAUDE.md : aucun parametre d'ajustement silencieux. Tout
+    coefficient qui n'est pas derive d'une equation physique doit etre nomme,
+    documente, ET SIGNALE A L'EXECUTION.
+    """
+    print('*' * 78)
+    print('AVERTISSEMENT : mode EMPIRIQUE. La pression calculee N\'EST PAS UNE')
+    print('PREDICTION. Elle vient d\'un ajustement a deux parametres,')
+    print(f'  R  = {R!r}  (unite indeterminee)')
+    print(f'  mP = {mP!r}')
+    print('sur des mesures dont la provenance n\'est pas etablie dans ce depot.')
+    print('Elle ne depend ni de K, ni de n, ni de l\'angle du cone, ni de la')
+    print('longueur de buse. Cette sortie NE DOIT ALIMENTER AUCUNE FIGURE')
+    print('destinee a une publication. Voir CLAUDE.md et')
+    print('notes/colonne_C_materials_xls.md.')
+    print('*' * 78)
+
+
+def calculatePrequired(R_eq, Q_eq, P_amb, n, mP, Noz_type, R, mode):
     """
     calculatePrequired is the function used to obtain the required pressure to extrude material through the equivalent flow resistance network
     characterized by the nozzles in parallel.
@@ -58,6 +79,8 @@ def calculatePrequired(R_eq, Q_eq, P_amb, n, mP, Noz_type, R):
         R (numeric): Resistance ajustee empiriquement, base de materiaux.
             Sert ici uniquement a savoir dans quelle convention d'unites
             R_eq est exprime, voir le commentaire de la branche empirique.
+        mode (str): ANALYTIQUE ou EMPIRIQUE, voir Velocity_driven.modeles.
+            Le choix etait auparavant devine par 'if mP != 0'.
 
     Output:
         P (numeric): Required pressure. [Pa]
@@ -66,16 +89,17 @@ def calculatePrequired(R_eq, Q_eq, P_amb, n, mP, Noz_type, R):
         %Date: June 13, 2020 - February 13, 2024
 
     """
+    valide_mode(mode)
     if isinstance(P_amb, (int, float)):  # and isinstance(R_eq, (int, float)) and isinstance(Q_eq, (int, float)) :
         if Noz_type == "tapered":
 
-            # Frontiere d'unites. Des qu'un parametre ajuste intervient, que
-            # ce soit R ou mP, l'expression entiere doit etre evaluee dans la
-            # convention d'unites de l'ajustement, Q en mm^3/s. Le chemin
-            # purement analytique, R et mP tous deux nuls, reste en SI.
-            convention_ajustement = (mP != 0) or (R != 0)
+            if mode == EMPIRIQUE:
+                avertit_mode_empirique(R, mP)
 
-            if convention_ajustement:
+            # Frontiere d'unites. En mode empirique, l'expression entiere doit
+            # etre evaluee dans la convention d'unites de l'ajustement, Q en
+            # mm^3/s. Le mode analytique reste en SI.
+            if mode == EMPIRIQUE:
                 Q_contrat = np.mean(Q_eq) / MILLIMETRE_CUBE
                 if R != 0:
                     # R_eq EST le parametre ajuste, deja dans la convention
@@ -89,7 +113,8 @@ def calculatePrequired(R_eq, Q_eq, P_amb, n, mP, Noz_type, R):
                 Q_contrat = np.mean(Q_eq)
                 R_contrat = np.mean(R_eq)
 
-            if mP != 0:
+            # CHOIX EXPLICITE, phase 5. La condition etait 'if mP != 0'.
+            if mode == EMPIRIQUE:
                 print(f'R_eq moyen (Pa) = {R_contrat}')
                 print(f'Q_eq moyen (Pa) = {Q_contrat}')
                 P = (R_contrat * Q_contrat ** mP) \

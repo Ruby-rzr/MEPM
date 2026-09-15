@@ -1,7 +1,9 @@
 import numpy as np
 
+from Velocity_driven.modeles import ANALYTIQUE, EMPIRIQUE, valide_mode
 
-def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
+
+def calculateReq(eta, theta, K, n, L, D, Noz_type, R, mode):
     """
     calculateReq is the function used to obtain the equivalent hydraulic
     resistance of several nozzles in parallel.
@@ -24,6 +26,8 @@ def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
         Noz_type (str): "tapered", ou toute autre valeur pour cylindrique.
         R (numeric): Resistance ajustee empiriquement, base de materiaux.
             Unite indeterminee, voir calculatePrequired.
+        mode (str): ANALYTIQUE ou EMPIRIQUE, voir Velocity_driven.modeles.
+            Le choix etait auparavant devine par 'if R != 0'.
 
     Outputs:
         R_eq (numeric or array-like): Equivalent hydraulic resistance.
@@ -48,6 +52,7 @@ def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
         Author: David Brzeski, Jean-François Chauvette, Raphaël Plante
             %Date: June 13, 2020 - February 13, 2024
     """
+    valide_mode(mode)
     eta = np.array(eta)
     L = np.array(L)
     D = np.array(D)
@@ -59,7 +64,8 @@ def calculateReq(eta, theta, K, n, L, D, Noz_type, R):
         #     raise ValueError(" Input D must be a matrix with 2 columns.")
         if Noz_type == "tapered":
             # Extract diameters from the first column of D
-            if R != 0:
+            # CHOIX EXPLICITE, phase 5. La condition etait 'if R != 0'.
+            if mode == EMPIRIQUE:
                 Ri = R*np.ones(len(eta))
                 R_eq = Ri
             else:
