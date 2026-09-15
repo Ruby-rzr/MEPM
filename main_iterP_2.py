@@ -5,8 +5,9 @@ import sys
 import tkinter as tk
 from tkinter import filedialog
 
-mepm_path = r"C:\Users\anirb\OneDrive\Desktop\Additive Nozzle Manufacturing\CODE FOR MEPM"
-sys.path.append(mepm_path)
+# FICHIER MORT, meme raison que main_iterP.py : il importe un paquet 'MEPM'
+# inexistant. Le chemin absolu Windows qui figurait ici a ete retire en
+# phase 6.
 
 from MEPM import calculateQ, calculatePrequired, calculateReq, calculateReqError, calculateSR, calculateVisco, validateReynolds, generateVreal 
 from tools import printTableInConsole

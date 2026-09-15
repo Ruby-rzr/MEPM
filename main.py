@@ -348,6 +348,3 @@ if __name__ == "__main__":
             # Frontière d'affichage : Q est en m³/s, rho en kg/m³, le tracé
             # attend des g/s. Auparavant Q était en mm³/s, d'où le 1e-6.
             comparePlotQ.comparePlotQ(v, np.sum(Q, 1)*rho*KILO)
-
-else:
-    print("Invalid material number.")

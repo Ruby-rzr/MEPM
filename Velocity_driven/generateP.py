@@ -1,13 +1,7 @@
 from Velocity_driven import calculateQ, calculatePrequired, calculateReq, calculateReqError, calculateSR, calculateVisco, validateReynolds
 from tools import printTableInConsole
-from tools.unites import MILLIMETRE, m3_par_s_vers_mm3_par_s, m_vers_mm
-import os
-import sys
+from tools.unites import m3_par_s_vers_mm3_par_s, m_vers_mm
 import numpy as np
-
-# Add the MEPM directory to the Python path
-mepm_path = r"C:\Users\anirb\OneDrive\Desktop\Additive Nozzle Manufacturing\CODE FOR MEPM"
-sys.path.append(mepm_path)
 
 
 def generateP(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP, debug_mode, modele, mode, incertitudes):

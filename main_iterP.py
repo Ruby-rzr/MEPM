@@ -8,8 +8,10 @@ import tkinter as tk
 from tkinter import filedialog
 import xlrd
 
-mepm_path = r"C:\Users\anirb\OneDrive\Desktop\Additive Nozzle Manufacturing\CODE FOR MEPM"
-sys.path.append(mepm_path)
+# FICHIER MORT. Il importe un paquet 'MEPM' qui n'existe pas dans ce depot, il
+# n'est donc pas importable et ne s'execute pas. Il est conserve parce qu'il
+# porte la boucle d'iteration sur la pression dont la phase 8 aura besoin.
+# Le chemin absolu Windows qui figurait ici a ete retire en phase 6.
 
 from MEPM import generateP, generateVreal, calculateQ, calculatePrequired, calculateReq, calculateReqError, calculateSR, calculateVisco, validateReynolds, generateVreal 
 from tools import printTableInConsole, readMaterial
