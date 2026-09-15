@@ -17,7 +17,6 @@ import numpy as np
 # Unites : celles des grandeurs auxquelles elles se rapportent.
 INCERTITUDE_K = 0.1           # sur l'indice de consistance K. [Pa.s^n]
 INCERTITUDE_N = 0.0001        # sur l'indice d'ecoulement n. [-]
-INCERTITUDE_SR = 0.0001       # sur le taux de cisaillement. [1/s]
 INCERTITUDE_ETA_INF = 0       # sur la viscosite infinie. [Pa.s]
 INCERTITUDE_ETA_0 = 0         # sur la viscosite au repos. [Pa.s]
 INCERTITUDE_LAMBDA = 0        # sur le temps de relaxation. [s]
@@ -43,7 +42,9 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
         a (numeric): Carreau model exponent. [-]
         debug_mode (bool): Flag to print debug information
         dSR (array-like): Error in shear rate array. [1/s]
-            DEFAUT #14 : cet argument est ecrase par INCERTITUDE_SR.
+            Obligatoire. Provient de calculateSR. DEFAUT #14 corrige en
+            phase 5 : cet argument etait ecrase par une constante en dur, ce
+            qui annulait la propagation de l'incertitude sur le cisaillement.
 
     Outputs:
         eta (array-like): Apparent viscosity array. [Pa.s]
@@ -54,11 +55,15 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
     """
     dK = INCERTITUDE_K
     dn = INCERTITUDE_N
-    # ATTENTION, defaut #14 : cette ligne ECRASE l'argument dSR recu par la
-    # fonction, donc l'incertitude propagee depuis calculateSR est perdue.
-    # Comportement conserve tel quel ici, sa correction change des nombres et
-    # releve d'une phase ulterieure.
-    dSR = INCERTITUDE_SR
+    # DEFAUT #14 corrige : l'incertitude sur le taux de cisaillement, propagee
+    # depuis calculateSR, est desormais UTILISEE. Elle etait ecrasee ici par
+    # une constante en dur de 1e-4, ce qui la reduisait a zero en pratique.
+    if dSR is None:
+        raise ValueError(
+            "dSR est obligatoire : l'incertitude sur le taux de cisaillement "
+            "doit etre propagee depuis calculateSR, elle n'a pas de valeur "
+            "par defaut defendable.")
+    dSR = np.asarray(dSR, dtype=float)
     deta_inf = INCERTITUDE_ETA_INF
     deta_0 = INCERTITUDE_ETA_0
     dlambda = INCERTITUDE_LAMBDA
@@ -117,15 +122,38 @@ def calculateVisco(SR, n, K, eta_inf, eta_0, tau_0, lmbda, a, debug_mode=False, 
 
         # Herschell-Bulkley extended model
         elif n != 0 and K != 0 and eta_inf != 0 and eta_0 == 0 and tau_0 != 0 and lmbda == 0 and a == 0:
-            eta = tau_0 / SR + K * SR ** (n - 1) + eta_inf  
-            deta = np.sqrt((dtau_0 / SR) ** 2 + (SR ** (n - 1) * dK) ** 2 + deta_inf ** 2 + ((n - 1) * K * SR ** (n - 1) + tau_0 / SR ** 2) * dSR + K * SR ** (n - 1) * np.log(SR) * dn)
+            eta = tau_0 / SR + K * SR ** (n - 1) + eta_inf
+            # DEFAUT #15 corrige. Derivees partielles de
+            #   eta = tau_0/SR + K SR^(n-1) + eta_inf
+            #   d/d tau_0  = 1/SR
+            #   d/dK       = SR^(n-1)
+            #   d/d eta_inf= 1
+            #   d/dSR      = -tau_0/SR^2 + K (n-1) SR^(n-2)
+            #   d/dn       = K SR^(n-1) ln(SR)
+            # L'expression precedente n'elevait pas au carre les deux derniers
+            # termes, utilisait SR^(n-1) au lieu de SR^(n-2) dans la derivee en
+            # SR, et additionnait -tau_0/SR^2 et K(n-1)SR^(n-2) avec des signes
+            # opposes aux leurs, ce qui les faisait se compenser au lieu de
+            # s'ajouter. Elle rendait NaN des que SR etait inferieur a 1.
+            d_dSR = -tau_0 / SR ** 2 + K * (n - 1) * SR ** (n - 2)
+            deta = np.sqrt((dtau_0 / SR) ** 2
+                           + (SR ** (n - 1) * dK) ** 2
+                           + deta_inf ** 2
+                           + (d_dSR * dSR) ** 2
+                           + (K * SR ** (n - 1) * np.log(SR) * dn) ** 2)
             if debug_mode:
                 print('Herschell-Bulkley extended model is used')
 
         # Herschell-Bulkley model
         elif n != 0 and K != 0 and eta_inf == 0 and eta_0 == 0 and tau_0 != 0 and lmbda == 0 and a == 0:
-            eta = tau_0 / SR + K * SR ** (n - 1)  
-            deta = np.sqrt((dtau_0 / SR) ** 2 + (SR ** (n - 1) * dK) ** 2 + ((n - 1) * K * SR ** (n - 1) + tau_0 / SR ** 2) * dSR + K * SR ** (n - 1) * np.log(SR) * dn)
+            eta = tau_0 / SR + K * SR ** (n - 1)
+            # DEFAUT #15 corrige, meme correction que la branche etendue
+            # ci-dessus, sans le terme en eta_inf.
+            d_dSR = -tau_0 / SR ** 2 + K * (n - 1) * SR ** (n - 2)
+            deta = np.sqrt((dtau_0 / SR) ** 2
+                           + (SR ** (n - 1) * dK) ** 2
+                           + (d_dSR * dSR) ** 2
+                           + (K * SR ** (n - 1) * np.log(SR) * dn) ** 2)
             if debug_mode:
                 print('Herschell-Bulkley model is used')
         else:
