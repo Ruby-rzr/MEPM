@@ -222,3 +222,33 @@ Le remplacement est prévu en phase 8 : réajustement de `R` et `mP` sur des
 pressions mesurées, par un script versionné, en SI. La provenance redevient
 alors connue et le facteur disparaît par construction. Un paramètre orphelin ne
 se répare pas, il se remplace.
+
+## Les deux bases de matériaux
+
+| Fichier | Rôle | Lu par |
+|---|---|---|
+| `materials.xls` | **artefact gelé**, ne jamais modifier | `tools/readMaterial.py`, uniquement pour reproduire les références historiques |
+| `materiaux.xlsx` | base de travail | `tools/lireMateriaux.py` |
+
+Le sha256 de `materials.xls` est l'ancre d'intégrité de toutes les références de
+non-régression. Le modifier invaliderait la référence active et rendrait les
+anciennes irreproductibles.
+
+`materiaux.xlsx` corrige les défauts de forme de l'ancienne :
+
+- en-têtes **nommés**, un matériau par ligne, plus de lecture positionnelle
+  ni de feuille par matériau. La lecture positionnelle était la cause directe
+  du défaut #10,
+- un champ `modele` explicite,
+- un champ `mode` explicite,
+- une colonne `d_<paramètre>` par paramètre. Une incertitude est une propriété
+  du matériau et de son ajustement, pas une constante du code. Elles sont
+  vides aujourd'hui, donc nulles, faute de connaître les conditions de mesure,
+- une colonne `provenance` par matériau et une `provenance_ajustement`.
+
+Elle est produite par `tools/creer_base_materiaux.py`, versionné pour que la
+provenance de chaque valeur soit lisible dans le code qui l'a écrite.
+
+**Tous les matériaux y sont en mode analytique.** Les valeurs `mP` et `R`
+présentes portent `provenance_ajustement = INCONNUE` et ne sont donc pas
+utilisées.
