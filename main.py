@@ -114,6 +114,16 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
     nommé dP ici est en réalité deta, dRi est dP, et deta est dRi. La
     correction relève d'une phase ultérieure.
 
+    Unités: celles du code ACTUEL, pas celles visées. La géométrie est en mm,
+    le reste en SI. Cette hétérogénéité est un défaut connu (#3 du diagnostic),
+    son harmonisation en SI strict est prévue en phase 4, et les unités
+    documentées ici changeront à ce moment.
+
+    Les libellés « Characteristic relaxation time » pour tau_0 et
+    « Pressure coefficient » pour lmbda sont hérités de la docstring d'origine
+    et sont inexacts au vu de calculateVisco et de la colonne d'unités de
+    materials.xls. Ils sont conservés tels quels ici, correction en phase 6.
+
     Args:
         v (numpy.ndarray): Array of desired nozzle exit speeds. [mm/s]
         rho (float): Fluid density. [kg/m^3]
@@ -131,7 +141,8 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
         P_amb (float): Ambient pressure. [Pa]
         Noz_type (str): "tapered" ou toute autre valeur pour cylindrique.
         R (float): Résistance ajustée empiriquement, base de matériaux.
-        mP (float): Exposant ajusté empiriquement, base de matériaux.
+            Unité indéterminée, voir le facteur 10**6 de calculatePrequired.
+        mP (float): Exposant ajusté empiriquement, base de matériaux. [-]
         alpha (int): Number of nozzles.
         debug_mode (bool, optional): Enable debug output (defaults to False).
 
