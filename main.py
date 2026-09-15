@@ -17,6 +17,7 @@
 
 from Velocity_driven import generateP, calculateQ
 from tools import readMaterial, comparePlotPV, comparePlotVisco, comparePlotQ, printTableInConsole
+from tools.unites import KILO, entrees_vers_si
 import numpy as np
 import math
 import os
@@ -114,10 +115,11 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
     nommé dP ici est en réalité deta, dRi est dP, et deta est dRi. La
     correction relève d'une phase ultérieure.
 
-    Unités: celles du code ACTUEL, pas celles visées. La géométrie est en mm,
-    le reste en SI. Cette hétérogénéité est un défaut connu (#3 du diagnostic),
-    son harmonisation en SI strict est prévue en phase 4, et les unités
-    documentées ici changeront à ce moment.
+    Unités: SI STRICT, m, Pa, s, kg. La conversion depuis les mm de saisie a
+    lieu à la frontière, dans tools.unites.entrees_vers_si, appelée par
+    executer_sur_saisie_mm juste avant cette fonction. Aucune conversion n'a
+    lieu en aval, à l'exception des conversions d'affichage et du contrat
+    d'unités de la branche empirique, documenté dans calculatePrequired.
 
     Les libellés « Characteristic relaxation time » pour tau_0 et
     « Pressure coefficient » pour lmbda sont hérités de la docstring d'origine
@@ -125,11 +127,11 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
     materials.xls. Ils sont conservés tels quels ici, correction en phase 6.
 
     Args:
-        v (numpy.ndarray): Array of desired nozzle exit speeds. [mm/s]
+        v (numpy.ndarray): Array of desired nozzle exit speeds. [m/s]
         rho (float): Fluid density. [kg/m^3]
         D (numpy.ndarray): Nozzle diameter array (3 x alpha) : sortie, erreur,
-            entrée. [mm]
-        L (numpy.ndarray): Nozzle length and error. [mm]
+            entrée. [m]
+        L (numpy.ndarray): Nozzle length and error. [m]
         theta (float): Half-cone angle of the nozzle. [rad]
         n (float): Power law exponent. [-]
         K (float): Consistency coefficient. [Pa.s^n]
@@ -150,13 +152,13 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
         dict: dictionnaire contenant :
             - P (numpy.ndarray): Array of calculated overall pressures. [Pa]
             - P_kPa (numpy.ndarray): idem, divisé par 1000, tel que tracé par main.py.
-            - eta (numpy.ndarray): Array of viscosity values for each P/v combination.
-            - SR (numpy.ndarray): Array of shear rate values for each P/v combination.
-            - Q (numpy.ndarray): Array of mass flow rates for each P/v combination (optional, might depend on generateP).
-            - dP (numpy.ndarray): Array of pressure derivatives (optional, might depend on generateP).
+            - eta (numpy.ndarray): Array of viscosity values for each P/v combination. [Pa.s]
+            - SR (numpy.ndarray): Array of shear rate values for each P/v combination. [1/s]
+            - Q (numpy.ndarray): Array of mass flow rates for each P/v combination (optional, might depend on generateP). [m^3/s]
+            - dP (numpy.ndarray): Array of pressure derivatives (optional, might depend on generateP). Contient en réalité deta [Pa.s], défaut #9.
             - dP_kPa (numpy.ndarray): idem, divisé par 1000, tel que tracé par main.py.
-            - dRi (numpy.ndarray): Array of internal resistance derivatives (optional, might depend on generateP).
-            - deta (numpy.ndarray): Array of viscosity derivatives (optional, might depend on generateP).
+            - dRi (numpy.ndarray): Array of internal resistance derivatives (optional, might depend on generateP). Contient en réalité dP, défaut #9. Unité non homogène à des Pa, défaut #20.
+            - deta (numpy.ndarray): Array of viscosity derivatives (optional, might depend on generateP). Contient en réalité dRi, défaut #9. Unité non homogène à Ri, défaut #20.
             - dSR (numpy.ndarray): Array of shear rate derivatives (optional, might depend on generateP).
 
     Authors: Jean-François Chauvette, David Brzeski, Anirban, Raphaël Plante
@@ -215,6 +217,37 @@ def compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a
     }
 
 
+def executer_sur_saisie_mm(rho, v_mm, D_mm, L_mm, theta, n, K, eta_0, eta_inf,
+                           tau_0, lmbda, a, P_amb, Noz_type, R, mP, alpha,
+                           debug_mode=False):
+    """Frontière d'entrée du modèle : convertit la saisie en mm puis calcule.
+
+    La géométrie d'une buse se mesure en mm et une vitesse d'impression
+    s'exprime en mm/s. Le modèle, lui, travaille en SI strict. Cette fonction
+    est le seul endroit où la conversion a lieu pour le chemin interactif.
+
+    Elle existe pour être testable : appeler compute_pressures directement
+    avec des millimètres produit un résultat silencieusement faux, le nombre
+    de Reynolds étant alors un million de fois trop grand, ce qui fait basculer
+    le modèle hors du régime laminaire et renvoyer des NaN.
+
+    Args:
+        rho (float): masse volumique. [kg/m^3]
+        v_mm (numpy.ndarray): vitesses en sortie de buse. [mm/s]
+        D_mm (numpy.ndarray): tableau (3, alpha) des diamètres. [mm]
+        L_mm (numpy.ndarray): longueur de buse et son erreur. [mm]
+        theta (float): demi-angle du cône. [rad]
+        Les autres arguments sont ceux de compute_pressures, déjà en SI.
+
+    Returns:
+        dict: identique à celui de compute_pressures, en SI.
+    """
+    D_si, L_si, v_si = entrees_vers_si(D_mm, L_mm, v_mm)
+    return compute_pressures(rho, v_si, D_si, L_si, theta, n, K, eta_0,
+                             eta_inf, tau_0, lmbda, a, P_amb, Noz_type, R, mP,
+                             alpha, debug_mode)
+
+
 if __name__ == "__main__":
     material_file_path, sheet_names = open_material_file()
 
@@ -252,9 +285,11 @@ if __name__ == "__main__":
         print(f"- Density: {rho}")
         print(f"- Weight fraction: {w}")
         # ... (add print statements for other properties)
-        results = compute_pressures(rho, v, D, L, theta, n, K, eta_0, eta_inf,
-                                    tau_0, lmbda, a, P_amb, Noz_type, R, mP,
-                                    alpha, debug_mode)
+        # D, L et v sont saisis en mm plus haut dans ce fichier. La
+        # conversion vers le SI a lieu dans executer_sur_saisie_mm.
+        results = executer_sur_saisie_mm(rho, v, D, L, theta, n, K, eta_0,
+                                         eta_inf, tau_0, lmbda, a, P_amb,
+                                         Noz_type, R, mP, alpha, debug_mode)
         P = results["P_kPa"]
         eta = results["eta"]
         SR = results["SR"]
@@ -286,7 +321,9 @@ if __name__ == "__main__":
 
         if 'Q' in graph_mode:
             # Plot mass flow rate vs. printing speed
-            comparePlotQ.comparePlotQ(v, np.sum(Q, 1)*rho*1e-6)
+            # Frontière d'affichage : Q est en m³/s, rho en kg/m³, le tracé
+            # attend des g/s. Auparavant Q était en mm³/s, d'où le 1e-6.
+            comparePlotQ.comparePlotQ(v, np.sum(Q, 1)*rho*KILO)
 
 else:
     print("Invalid material number.")
