@@ -30,8 +30,15 @@ Deux familles de cas :
       d'avoir ete utilisees dans un manuscrit. La reproductibilite de cette
       famille prime sur son elegance.
 
+Versionnement : une reference n'est JAMAIS ecrasee. Ce script refuse d'ecrire
+sur un fichier existant. Chaque phase qui modifie une valeur numerique de
+sortie produit une nouvelle version sous tests/references/, les precedentes
+sont conservees, et tests/compare_references.py produit le tableau comparatif
+qui justifie chaque ecart.
+
 Usage :
-    python3 tests/generate_reference.py [chemin/vers/reference.json]
+    python3 tests/generate_reference.py <nom_de_version>
+    python3 tests/generate_reference.py reference_v2_phase4
 
 Auteurs du code modelise : David Brzeski, Jean-Francois Chauvette,
 Raphael Plante. Ce script de gel est une contribution de la refonte.
@@ -61,6 +68,7 @@ import main                             # noqa: E402
 from tools import readMaterial          # noqa: E402
 
 BASE_MATERIAUX = os.path.join(RACINE, "materials.xls")
+DOSSIER_REFERENCES = os.path.join(RACINE, "tests", "references")
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +390,18 @@ def main_script(chemin_sortie):
 
 
 if __name__ == "__main__":
-    sortie = sys.argv[1] if len(sys.argv) > 1 else \
-        os.path.join(RACINE, "tests", "reference.json")
+    if len(sys.argv) != 2:
+        print(__doc__)
+        print("ERREUR : un nom de version est obligatoire, par exemple "
+              "reference_v2_phase4", file=sys.stderr)
+        raise SystemExit(2)
+    nom_version = sys.argv[1]
+    if nom_version.endswith(".json"):
+        nom_version = nom_version[:-5]
+    sortie = os.path.join(DOSSIER_REFERENCES, f"{nom_version}.json")
+    if os.path.exists(sortie):
+        print(f"ERREUR : {sortie} existe deja. Une reference n'est jamais "
+              f"ecrasee : choisissez un nouveau nom de version.", file=sys.stderr)
+        raise SystemExit(1)
+    os.makedirs(DOSSIER_REFERENCES, exist_ok=True)
     main_script(sortie)
