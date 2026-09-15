@@ -33,6 +33,27 @@ def tableau(avant, apres, titre):
     print(f"  {avant}  ->  {apres}")
     print("=" * 78)
 
+    def statut(sorties):
+        lecture = sorties.get('lecture_materiau')
+        if lecture and lecture.get('statut') == 'exception':
+            return 'lecture ' + lecture['type']
+        calcul = sorties.get('calcul', {})
+        if calcul.get('statut') == 'exception':
+            return 'calcul ' + calcul['type']
+        return 'ok'
+
+    changements = []
+    for ident in sorted(set(a) & set(b)):
+        sa, sb = statut(a[ident]['sorties']), statut(b[ident]['sorties'])
+        if sa != sb:
+            changements.append((ident, sa, sb))
+    if changements:
+        print(f"\n  Changements de statut : {len(changements)}")
+        print(f"  {'cas':<44} {'avant':<24} {'apres':<12}")
+        print(f"  {'-'*44} {'-'*24} {'-'*12}")
+        for ident, sa, sb in changements:
+            print(f"  {ident[:44]:<44} {sa:<24} {sb:<12}")
+
     cas_touches, champs = set(), {}
     for ident in sorted(set(a) & set(b)):
         for champ in CHAMPS_NUMERIQUES:

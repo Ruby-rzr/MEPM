@@ -15,18 +15,24 @@ Ils documentent deux defauts du diagnostic :
       geometrie. Avec Ri nul, le rapport dRi/Ri^2 vaut zero sur zero, d'ou
       l'avertissement.
 
-MISE A JOUR APRES LA CORRECTION DU DEFAUT #20. Le compte a change et ce test
-s'est declenche, comme prevu. Avant correction : 608 occurrences, deux
-signatures, une division par zero et une valeur invalide, emises dans une
-boucle sur les buses. Apres : 76 occurrences, une seule signature, la boucle
-ayant ete remplacee par un calcul vectorise et la division par zero ayant
-disparu de l'expression de dRi. Les 19 cas emetteurs sont EXACTEMENT LES
-MEMES, ce qui confirme que la cause n'a pas bouge : Ri vaut zero en conique
-des que K vaut zero.
+HISTORIQUE DES MISES A JOUR, chacune consentie apres declenchement du test.
 
-Quand la phase 7 corrigera Ri = 0 en conique, le compte changera de nouveau et
-ce test se declenchera. C'est voulu : il oblige a constater le changement
-plutot qu'a le subir.
+  phase 3      608 occurrences, 19 cas, deux signatures, une division par zero
+               et une valeur invalide, emises dans une boucle sur les buses.
+  defaut #20    76 occurrences, 19 cas, une seule signature. La boucle a ete
+               remplacee par un calcul vectorise et la division par zero a
+               disparu de l'expression de dRi. Les 19 cas emetteurs sont
+               restes LES MEMES, ce qui a confirme que la cause n'avait pas
+               bouge.
+  defauts #10 et #19   240 occurrences, 29 cas. Dix cas de plus, qui levaient
+               auparavant une exception et qui calculent desormais. La cause
+               est inchangee.
+
+Le jeu des cas emetteurs n'est plus fige sous forme de liste : il est DERIVE
+DE LA CAUSE, a savoir une buse conique dont la resistance analytique vaut zero
+parce que K vaut zero. Une liste recopiee ne dirait pas pourquoi ces cas-la.
+Quand la phase 7 corrigera Ri = 0 en conique, l'ensemble derive deviendra vide
+et ce test se declenchera.
 
 Le test n'assert pas les numeros de ligne, qui bougeraient au moindre
 reformatage. Il assert la categorie, le fichier et le message.
@@ -52,19 +58,37 @@ from tests.reference_io import execute                 # noqa: E402
 # Signatures attendues : (categorie, fichier, message).
 SIGNATURES_ATTENDUES = {
     ("RuntimeWarning", "calculateReqError.py",
-     "invalid value encountered in divide"): 76,
+     "invalid value encountered in divide"): 240,
 }
 
-# Les 19 cas concernes sont tous coniques, avec K = 0 et R = 0, donc Ri = 0.
-CAS_ATTENDUS = {
-    f"A|{loi}|tapered|{geo}|{mode}"
-    for loi in ("bingham_synthetique", "carreau_PLA_solvent_cast_25",
-                "newtonien_synthetique")
-    for geo in ("De=0.25", "De=0.45", "De=0.6")
-    for mode in ("analytique", "mP_seul_aberrant")
-} | {"A|newtonien_synthetique|tapered|heterogene|analytique"}
+NOMBRE_DE_CAS_ATTENDU = 29
 
-OCCURRENCES_PAR_CAS = 4
+
+def cas_a_resistance_conique_nulle(reference):
+    """Cas ou la resistance conique analytique vaut zero, donc ou Ri = 0.
+
+    C'est la CAUSE des avertissements : en buse conique, calculateReq n'utilise
+    que K et n, jamais eta (defaut #11). Quand K vaut zero, ce qui est le cas
+    des lois newtonienne, de Carreau et de Bingham, la resistance est nulle, et
+    calculateReqError divise alors zero par zero (defaut #12).
+
+    La branche empirique, R non nul, remplace la resistance analytique par le
+    parametre ajuste et n'est donc pas concernee.
+    """
+    concernes = set()
+    for identifiant, enregistrement in reference["resultats"].items():
+        entrees, sorties = enregistrement["entrees"], enregistrement["sorties"]
+        if entrees["Noz_type"] != "tapered":
+            continue
+        if sorties.get("calcul", {}).get("statut") != "ok":
+            continue
+        parametres = sorties.get("parametres_materiau", {})
+        if parametres.get("K", 1.0) != 0.0:
+            continue
+        if entrees.get("R", parametres.get("R", 0.0)) != 0.0:
+            continue
+        concernes.add(identifiant)
+    return concernes
 
 
 @pytest.fixture(scope="module")
@@ -88,16 +112,20 @@ def avertissements_captures():
 
 
 def test_cas_emetteurs(avertissements_captures):
-    """Exactement 19 cas emettent des avertissements, et ce sont ceux-la."""
+    """Les cas emetteurs sont exactement ceux dont la resistance conique est nulle."""
     par_cas, _ = avertissements_captures
     obtenus = set(par_cas)
-    assert obtenus == CAS_ATTENDUS, (
-        "\nLe jeu des cas emettant des avertissements a change.\n"
-        f"  apparus  : {sorted(obtenus - CAS_ATTENDUS)}\n"
-        f"  disparus : {sorted(CAS_ATTENDUS - obtenus)}\n"
+    attendus = cas_a_resistance_conique_nulle(reference_io.charge())
+    assert obtenus == attendus, (
+        "\nLes avertissements ne viennent plus exactement des cas a "
+        "resistance conique nulle.\n"
+        f"  emettent sans raison connue : {sorted(obtenus - attendus)}\n"
+        f"  devraient emettre et n'emettent plus : {sorted(attendus - obtenus)}\n"
         "Si la phase 7 a corrige Ri = 0 en conique, c'est attendu : mettre a "
         "jour ce test en connaissance de cause.")
-    assert len(obtenus) == 19
+    assert len(obtenus) == NOMBRE_DE_CAS_ATTENDU, (
+        f"\n{len(obtenus)} cas emetteurs au lieu de "
+        f"{NOMBRE_DE_CAS_ATTENDU}. Le compte a change, dire pourquoi.")
 
 
 def test_signatures_et_comptes(avertissements_captures):
@@ -107,14 +135,25 @@ def test_signatures_et_comptes(avertissements_captures):
         "\nLes avertissements emis ont change.\n"
         f"  obtenu  : {dict(total)}\n"
         f"  attendu : {SIGNATURES_ATTENDUES}")
-    assert sum(total.values()) == 76
+    assert sum(total.values()) == 240
 
 
 def test_occurrences_par_cas(avertissements_captures):
-    """Chaque cas emetteur emet 4 occurrences, une par vitesse."""
+    """Chaque cas emetteur emet exactement une occurrence par vitesse.
+
+    calculateReqError est appelee une fois par vitesse, et le calcul de dRi y
+    est vectorise sur les buses depuis la correction du defaut #20. Le nombre
+    d'occurrences ne depend donc que du nombre de vitesses du cas, pas du
+    nombre de buses.
+    """
     par_cas, _ = avertissements_captures
-    anomalies = [f"{identifiant} : {sum(sig.values())}"
-                 for identifiant, sig in par_cas.items()
-                 if sum(sig.values()) != OCCURRENCES_PAR_CAS]
+    reference = reference_io.charge()
+    anomalies = []
+    for identifiant, signatures in par_cas.items():
+        attendu = len(reference["resultats"][identifiant]["entrees"]["v"])
+        obtenu = sum(signatures.values())
+        if obtenu != attendu:
+            anomalies.append(f"{identifiant} : {obtenu} occurrences pour "
+                             f"{attendu} vitesses")
     assert not anomalies, ("\nNombre d'occurrences inattendu :\n  " +
                            "\n  ".join(anomalies))

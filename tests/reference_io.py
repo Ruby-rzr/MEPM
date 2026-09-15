@@ -38,7 +38,7 @@ if RACINE not in sys.path:
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 # Reference rejouee par tests/test_regression.py.
-VERSION_ACTIVE = "reference_v5_defaut8"
+VERSION_ACTIVE = "reference_v6_defauts10_19"
 
 # Champs numeriques enregistres pour un cas dont le calcul aboutit.
 CHAMPS_NUMERIQUES = ("P", "P_kPa", "eta", "SR", "Q", "dP", "dP_kPa",

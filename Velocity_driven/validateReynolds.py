@@ -36,9 +36,20 @@ def validateReynolds(rho, v, D, eta, debug_mode=False):
 
     if np.isscalar(rho): #and np.isscalar(eta):
         if np.any(rho == 0):
+            # DEFAUT #19, corrige en phase 5. typeEcoul valait ici un TABLEAU
+            # de NaN, et generateP le testait par 'if typeEcoul == 0', ce qui
+            # levait une ValueError sur l'ambiguite d'un tableau. Tout
+            # materiau dont la masse volumique vaut zero dans la base faisait
+            # donc planter le modele, alors que le message ci-dessous annonce
+            # que la validation est simplement ignoree.
+            #
+            # typeEcoul vaut desormais le scalaire 0, c'est a dire laminaire,
+            # ce qui laisse le calcul se poursuivre comme le message l'annonce.
+            # L'HYPOTHESE DE LAMINARITE N'EST ALORS PAS VERIFIEE, d'ou le
+            # message, qui est le seul avertissement disponible a ce stade.
             print('Reynolds validation is skipped since rho = 0. Update material database to activate Reynolds validation.')
-            typeEcoul = np.full(D.shape[0], np.nan)
-            Re = np.full(D.shape[0], np.nan)
+            typeEcoul = 0
+            Re = np.full(D.shape, np.nan)
         else:
             # Sans division : avec rho en kg/m^3, v en m/s, D en m et eta en
             # Pa.s, le quotient est directement adimensionnel.
