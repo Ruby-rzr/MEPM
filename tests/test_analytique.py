@@ -217,7 +217,17 @@ def test_T4_mise_en_parallele_buses_identiques(Noz_type, n, K):
 DELTAS = [5e-1, 2e-1, 1e-1, 5e-2, 2e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4,
           1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14]
 
+# Tolerance d'accord des rapports a l'interieur d'une fenetre de plateau.
+# Elle est encadree par deux ordres de grandeur mesures :
+#   - 1e-7 : dispersion effectivement observee au plateau, donc la tolerance
+#     lui laisse deux decades de marge et ne coupe aucun plateau reel ;
+#   - 0.28 : plus petit ecart a demontrer, celui de n = 0.8 pour lequel
+#     (3n+1)^(1-n) vaut 1.277. La tolerance est plus de quatre decades en
+#     dessous, donc elle ne peut pas masquer le defaut recherche.
 TOLERANCE_PLATEAU = 1e-5
+
+# Un plateau est retenu a partir de trois points. Les plateaux reellement
+# observes en font cinq a six, la marge est donc reelle.
 LARGEUR_PLATEAU_MINIMALE = 3
 
 
@@ -290,24 +300,56 @@ def test_T5_continuite_conique_vers_cylindrique(n, K):
         f"{abs(valeur - (3 * n + 1) ** (1 - n)) / (3 * n + 1) ** (1 - n):.3e}")
 
 
+GEOMETRIES_BALAYEES = [(De, L, v)
+                       for De in (0.25, 0.45, 0.60)
+                       for L in (6.5, 17.25, 30.0)
+                       for v in (10.0, 100.0, 250.0)]
+
+
 @pytest.mark.parametrize("n, K", [(0.31, 4363.0), (0.49, 3280.0), (0.8, 120.0)])
-def test_T5bis_facteur_parasite_vaut_bien_3n_plus_1_puissance_1_moins_n(n, K):
-    """Le rapport conique sur cylindrique vaut (3n+1)^(1-n), pas autre chose.
+def test_T5bis_le_rapport_ne_depend_que_de_n(n, K):
+    """Le rapport conique sur cylindrique vaut (3n+1)^(1-n) et ne depend que de n.
 
     Ce test ne valide rien physiquement. Il epingle quantitativement le
     defaut #8 : tant qu'il passe, l'ecart observe est entierement explique par
-    la priorite d'operateurs, et par rien d'autre. Quand le defaut sera
-    corrige, ce test echouera, ce qui obligera a constater la correction
-    plutot qu'a la subir. Il sera alors supprime en meme temps que le xfail de
-    test_T5 sera leve.
+    la priorite d'operateurs, et par rien d'autre.
+
+    L'independance vis-a-vis de v, De et L est le point qui distingue une
+    ERREUR D'ECRITURE d'une ERREUR DE DERIVATION. Une formule mal derivee
+    laisserait en general une dependance residuelle en geometrie ou en debit.
+    Ici le rapport est rigoureusement constant sur les 27 combinaisons
+    balayees, a la dispersion du plateau pres.
+
+    Quand le defaut sera corrige, ce test echouera, ce qui obligera a
+    constater la correction plutot qu'a la subir. Il sera retourne en meme
+    temps que le xfail de test_T5 sera leve, en phase 7, pas avant.
     """
-    plateau = detecte_plateau(rapports_conique_sur_cylindrique(n, K))
-    assert plateau is not None, f"aucun plateau pour n = {n}"
-    _, _, valeur = plateau
     attendu = (3 * n + 1) ** (1 - n)
-    assert valeur == pytest.approx(attendu, rel=TOLERANCE_PLATEAU), (
-        f"\nn = {n} : rapport observe {valeur!r}, (3n+1)^(1-n) = {attendu!r}, "
-        f"ecart relatif {abs(valeur - attendu) / attendu:.3e}")
+    observes = {}
+    for De, L, v in GEOMETRIES_BALAYEES:
+        plateau = detecte_plateau(
+            rapports_conique_sur_cylindrique(n, K, De=De, L=L, v=v))
+        assert plateau is not None, (
+            f"aucun plateau separable du bruit pour n = {n}, "
+            f"De = {De}, L = {L}, v = {v}. Refus de conclure.")
+        observes[(De, L, v)] = plateau[2]
+
+    hors_tolerance = {
+        cle: valeur for cle, valeur in observes.items()
+        if abs(valeur - attendu) / attendu > TOLERANCE_PLATEAU}
+    assert not hors_tolerance, (
+        f"\nn = {n} : (3n+1)^(1-n) = {attendu!r}\n  " + "\n  ".join(
+            f"De={De} L={L} v={v} : {valeur!r}, ecart "
+            f"{abs(valeur - attendu) / attendu:.3e}"
+            for (De, L, v), valeur in sorted(hors_tolerance.items())))
+
+    dispersion = max(observes.values()) - min(observes.values())
+    assert dispersion <= TOLERANCE_PLATEAU * attendu, (
+        f"\nn = {n} : le rapport n'est pas independant de la geometrie et du "
+        f"debit, dispersion {dispersion:.3e} sur "
+        f"{len(observes)} combinaisons (De, L, v).\n"
+        "Une dependance residuelle indiquerait une erreur de derivation et "
+        "non une simple erreur d'ecriture.")
 
 
 def test_T5ter_continuite_conique_exacte_pour_n_egal_1():
