@@ -166,3 +166,22 @@ retournés en même temps que la correction du défaut #8.
 
 `tests/test_avertissements.py` fige de la même façon les `RuntimeWarning` émis
 à l'exécution, qui documentent les défauts #11 et #12.
+
+## Deux règles issues d'un incident
+
+Le commit de phase 4 a été poussé incomplet. Un `git checkout -- main.py`, lancé
+pour défaire une mutation temporaire, a aussi annulé des modifications non
+commitées du même fichier. Le code livré passait alors des millimètres à une
+fonction devenue SI, et rendait des NaN sur son chemin d'entrée réel. **La suite
+est restée verte**, parce qu'elle emprunte `tests/reference_io.execute` et non
+`main.py`.
+
+1. **Jamais de `git checkout --` sur un fichier portant du travail non commité.**
+   Utiliser `git stash`, ou une copie temporaire du fichier, et restaurer
+   explicitement.
+
+2. **Un oracle valide le chemin qu'il emprunte lui-même.** Toute grandeur
+   destinée à une figure d'article doit être produite par un test qui parcourt
+   le chemin de production de bout en bout, pas seulement le chemin du harnais
+   de test. C'est l'objet de `tests/test_frontiere_saisie.py`, à étendre à
+   chaque nouveau chemin de production.
