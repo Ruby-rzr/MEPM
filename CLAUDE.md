@@ -88,3 +88,27 @@ Règles de comparaison des flottants, sans tolérance :
 La suite vérifie aussi le sha256 de `materials.xls`. Si la base a changé, le
 test d'intégrité échoue avec un message explicite et les cas qui lisent la base
 sont ignorés plutôt que comparés à tort.
+
+## Tests analytiques et échecs attendus
+
+`tests/test_analytique.py` confronte le modèle à des solutions analytiques
+connues. Certains de ses tests échouent volontairement : ils documentent un
+défaut identifié, ils ne signalent pas une régression.
+
+Un test dont l'échec est attendu porte `@pytest.mark.xfail(strict=True)` avec
+une raison qui nomme le défaut. La suite reste verte. Si le test se met à
+passer, par exemple parce que le défaut a été corrigé, pytest le rapporte en
+`XPASS(strict)`, donc en échec. Corriger un défaut oblige donc à retirer le
+marqueur en connaissance de cause.
+
+| Test | État | Ce qu'il garantit |
+|---|---|---|
+| T1 | passe | newtonien cylindrique égale Hagen-Poiseuille |
+| T2 | passe | loi de puissance cylindrique égale `4LK gamma_w^n/D`, garde-fou du double facteur de Rabinowitsch |
+| T3 | passe | exposants d'échelle sur L, K, Q et D |
+| T4 | passe | annulation des alpha pour des buses identiques |
+| T5 | **xfail** | continuité conique vers cylindrique, défaut #8 |
+| T6 | passe | continuité du seuil quand tau_0 tend vers zéro, ne valide rien pour tau_0 supérieur à zéro |
+
+`tests/test_avertissements.py` fige de la même façon les `RuntimeWarning` émis
+à l'exécution, qui documentent les défauts #11 et #12.
