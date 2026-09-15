@@ -48,3 +48,43 @@ Ne jamais toucher à l'un de ces deux facteurs sans exécuter le test analytique
 - Pas de préambule, pas de reformulation de ma demande.
 - Pour toute comparaison ou état d'avancement, utilise un tableau.
 - N'utilise jamais de tirets cadratins, utilise des virgules.
+
+## Lancer la suite de non-régression
+
+Une seule commande, depuis la racine du dépôt :
+
+    python3 -m pytest tests -q
+
+Elle rejoue la référence active et exige une égalité bit à bit sur toutes les
+sorties. Durée attendue, de l'ordre de deux secondes. Si elle dépasse la
+minute, quelque chose ne va pas et il faut le corriger avant d'aller plus loin.
+
+Dépendances : numpy, pandas, xlrd, matplotlib, openpyxl, pytest.
+
+## Références de non-régression
+
+Une référence n'est jamais écrasée. Les versions vivent dans
+`tests/references/` et la version rejouée par la suite est désignée par
+`VERSION_ACTIVE` dans `tests/reference_io.py`.
+
+| Action | Commande |
+|---|---|
+| Produire une nouvelle version | `python3 tests/generate_reference.py reference_v2_phase4` |
+| Comparer deux versions | `python3 tests/compare_references.py reference_v1_phase1 reference_v2_phase4` |
+| Tableau complet en CSV | ajouter `--csv ecarts.csv` |
+
+Le générateur refuse d'écrire sur un fichier existant. Toute phase qui change
+une valeur numérique de sortie produit une nouvelle version, bascule
+`VERSION_ACTIVE`, et justifie chaque écart à l'aide du tableau comparatif, pas
+du diff JSON.
+
+Règles de comparaison des flottants, sans tolérance :
+
+- deux NaN sont égaux, quelle que soit leur charge utile,
+- un NaN face à un nombre est un échec, dans les deux sens,
+- tout le reste est comparé sur les 64 bits bruts, ce qui distingue `+0.0` de
+  `-0.0` et `+inf` de `-inf`.
+
+La suite vérifie aussi le sha256 de `materials.xls`. Si la base a changé, le
+test d'intégrité échoue avec un message explicite et les cas qui lisent la base
+sont ignorés plutôt que comparés à tort.

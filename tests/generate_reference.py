@@ -44,12 +44,9 @@ Auteurs du code modelise : David Brzeski, Jean-Francois Chauvette,
 Raphael Plante. Ce script de gel est une contribution de la refonte.
 """
 
-import contextlib
 import datetime
 import hashlib
-import io
 import json
-import math
 import os
 import platform
 import subprocess
@@ -64,44 +61,8 @@ import numpy as np                      # noqa: E402
 import pandas as pd                     # noqa: E402
 import xlrd                             # noqa: E402
 
-import main                             # noqa: E402
-from tools import readMaterial          # noqa: E402
-
-BASE_MATERIAUX = os.path.join(RACINE, "materials.xls")
-DOSSIER_REFERENCES = os.path.join(RACINE, "tests", "references")
-
-
-# ---------------------------------------------------------------------------
-# Geometries
-# ---------------------------------------------------------------------------
-
-def make_D(De, Do, alpha, err=0.001):
-    """Construit le tableau D attendu par le modele.
-
-    Args:
-        De (float): diametre de sortie de buse. [mm]
-        Do (float): diametre d'entree de buse, utilise en conique. [mm]
-        alpha (int): nombre de buses.
-        err (float): erreur sur le diametre mesure. [mm]
-
-    Returns:
-        numpy.ndarray de forme (3, alpha) : sortie, erreur, entree. [mm]
-    """
-    D = np.zeros((3, alpha))
-    D[0, :] = De
-    D[1, :] = err
-    D[2, :] = Do
-    return D
-
-
-def make_D_heterogene(diametres, Do, err=0.001):
-    """Idem, mais avec un diametre de sortie different par buse. [mm]"""
-    alpha = len(diametres)
-    D = np.zeros((3, alpha))
-    D[0, :] = np.asarray(diametres, dtype=float)
-    D[1, :] = err
-    D[2, :] = Do
-    return D
+from tests.reference_io import (         # noqa: E402
+    BASE_MATERIAUX, DOSSIER_REFERENCES, execute)
 
 
 # Geometrie conique de reference, celle de main.py au tag etat-initial.
@@ -251,79 +212,6 @@ def cas_famille_B():
 # Execution
 # ---------------------------------------------------------------------------
 
-def construit_D(description):
-    if description["type"] == "homogene":
-        return make_D(description["De"], description["Do"],
-                      description["alpha"], description["err"])
-    return make_D_heterogene(description["diametres"], description["Do"],
-                             description["err"])
-
-
-def enregistre(x):
-    """Convertit une sortie numpy en structure JSON, NaN et inf compris."""
-    arr = np.asarray(x, dtype=float)
-    return arr.tolist()
-
-
-def execute_cas(cas):
-    """Execute un cas et retourne ses sorties, ou l'exception levee."""
-    D = construit_D(cas["D_description"])
-    alpha = D.shape[1]
-    L = np.array(cas["L"], dtype=float)
-    theta = math.radians(cas["angle_deg"])
-    v = np.array(cas["v"], dtype=float)
-
-    resultat = dict(alpha=alpha)
-
-    if cas["famille"] == "A":
-        loi = cas["loi"]
-        resultat["parametres_materiau"] = {
-            k: loi[k] for k in ("rho", "n", "K", "eta_inf", "eta_0",
-                                "tau_0", "lmbda", "a")}
-        resultat["provenance_materiau"] = loi["provenance"]
-        rho = loi["rho"]
-        n, K = loi["n"], loi["K"]
-        eta_inf, eta_0 = loi["eta_inf"], loi["eta_0"]
-        tau_0, lmbda, a = loi["tau_0"], loi["lmbda"], loi["a"]
-        R, mP = cas["R"], cas["mP"]
-    else:
-        # Chemin complet : la lecture de la base fait partie de ce qu'on gele.
-        try:
-            with contextlib.redirect_stdout(io.StringIO()):
-                lu = readMaterial.readMaterial(BASE_MATERIAUX, cas["feuille"])
-        except Exception as exc:          # noqa: BLE001
-            resultat["lecture_materiau"] = dict(
-                statut="exception",
-                type=type(exc).__name__,
-                message=str(exc))
-            return resultat
-        rho, w, f, n, K, eta_inf, eta_0, tau_0, lmbda, a, mP, R = lu
-        resultat["lecture_materiau"] = dict(statut="ok")
-        resultat["parametres_materiau"] = dict(
-            rho=float(rho), w=float(w), f=float(f), n=float(n), K=float(K),
-            eta_inf=float(eta_inf), eta_0=float(eta_0), tau_0=float(tau_0),
-            lmbda=float(lmbda), a=float(a), mP=float(mP), R=float(R))
-        resultat["R"] = float(R)
-        resultat["mP"] = float(mP)
-
-    try:
-        with contextlib.redirect_stdout(io.StringIO()):
-            sorties = main.compute_pressures(
-                rho, v, D, L, theta, n, K, eta_0, eta_inf, tau_0, lmbda, a,
-                cas["P_amb"], cas["Noz_type"], R, mP, alpha, False)
-    except Exception as exc:              # noqa: BLE001
-        resultat["calcul"] = dict(statut="exception",
-                                  type=type(exc).__name__,
-                                  message=str(exc))
-        return resultat
-
-    resultat["calcul"] = dict(statut="ok")
-    for cle in ("P", "P_kPa", "eta", "SR", "Q", "dP", "dP_kPa",
-                "dRi", "deta", "dSR"):
-        resultat[cle] = enregistre(sorties[cle])
-    return resultat
-
-
 # ---------------------------------------------------------------------------
 # Metadonnees
 # ---------------------------------------------------------------------------
@@ -354,6 +242,20 @@ def metadonnees():
         base_materiaux_sha256=hashlib.sha256(
             open(BASE_MATERIAUX, "rb").read()).hexdigest(),
     )
+
+
+def execute_cas(cas):
+    """Adaptateur : prepare les entrees et delegue a reference_io.execute."""
+    entrees = {k: v for k, v in cas.items() if k != "loi"}
+    resultat = execute(entrees, cas.get("loi"))
+    if cas["famille"] == "A":
+        ordonne = {}
+        for cle, valeur in resultat.items():
+            ordonne[cle] = valeur
+            if cle == "parametres_materiau":
+                ordonne["provenance_materiau"] = cas["loi"]["provenance"]
+        resultat = ordonne
+    return resultat
 
 
 def main_script(chemin_sortie):
