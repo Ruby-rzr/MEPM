@@ -173,6 +173,11 @@ Ces valeurs incluent `P_amb`. Avant correction du défaut #8 elles valaient
 1 164.50 kPa à 10 mm/s et 3 386.85 kPa à 100 mm/s, soit **de 10 à 37 % de
 plus**. Toute valeur antérieure à cette correction est à écarter.
 
+Attention si une figure ancienne portait un **débit** plutôt qu'une pression :
+à pression imposée, l'erreur du défaut #8 vaut `(3n+1)^((1-n)/n)`, donc un
+facteur **2.6 à 5.5** selon `n`, et non 10 à 37 %. Voir l'observation #24 du
+registre.
+
 Reproductibles à tout moment :
 
     python3 -c "import json;r=json.load(open('tests/references/reference_v9_phase6.json'))['resultats'];print(r['B|EC3515-0%|conique']['sorties']['P_kPa'])"

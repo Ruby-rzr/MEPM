@@ -32,6 +32,7 @@
 | 21 | La branche de Carreau n'a **aucun terme en `dn`**. La dérivée `d eta/d n` est absente de la somme en quadrature | **ouvert et gelé**. Arbitrage : branche non utilisée par les matériaux de l'étude, et rendue inopérante en conique par le défaut #11. **À traiter si quelqu'un branche un matériau de Carreau** |
 | 22 | Branche de Carreau, terme `deta5` : `ratio` apparaît à la puissance 1 là où la dérivation donne `ratio^((n-1)/a)` | **ouvert et gelé**, même arbitrage que #21. Sans effet numérique tant que `da` vaut zéro, ce qui est le cas aujourd'hui. **À traiter si quelqu'un branche un matériau de Carreau** |
 | 23 | Les paramètres rhéologiques de `EC3515-0%` et `EC3515-8%` se croisent à 4.88 1/s, et la formulation chargée devient MOINS visqueuse au-delà | **observation, non tranchée**. Ce n'est pas un défaut du code, c'est une anomalie des DONNÉES. Voir la section détaillée ci-dessous |
+| 24 | À pression imposée, l'erreur du défaut #8 sur le débit vaut `(3n+1)^((1-n)/n)`, soit un facteur 2.56 à `n = 0.49` et 4.32 à `n = 0.31`, contre 1.59 et 1.57 sur la pression | **observation**, conséquence chiffrée du défaut #8 déjà corrigé. Voir la section détaillée ci-dessous |
 
 ## Récapitulatif
 
@@ -42,6 +43,7 @@
 | ouvert et gelé | 5 | 2, 13, 16, 21, 22 |
 | reporté en phase 7 | 4 | 4, 7, 11, 12 |
 | observation sur les données, non tranchée | 1 | 23 |
+| observation, conséquence d'un défaut corrigé | 1 | 24 |
 
 Le défaut 20 est le seul qui n'était pas dans le diagnostic initial de sept
 points : il a été trouvé en phase 4, en cherchant le facteur de conversion des
@@ -124,3 +126,73 @@ cisaillement pariétal calculé sort de cette plage**.
   quand l'écoulement sort de la plage d'ajustement. Une extrapolation
   silencieuse d'une loi de puissance sur quatre décades n'est pas défendable
   devant un relecteur.
+
+
+## Observation #24 : l'erreur du défaut #8 est bien plus grande à pression imposée
+
+**Observation, pas défaut.** Le défaut #8 est corrigé. Cette entrée chiffre sa
+conséquence sur une grandeur que le code ne produit pas directement, le débit à
+pression imposée, parce que c'est sous cette forme que le mémoire d'origine
+présente la formulation conique.
+
+### Les deux formes sont inverses l'une de l'autre
+
+Le code implémente la chute de pression à débit imposé. L'annexe A du mémoire
+donne le débit à pression imposée :
+
+    Q = (n pi / (3n+1))
+        [ 3 n Delta_P tan(theta)
+          / (2 K (R_sortie^-3n - R_entree^-3n)) ]^(1/n)
+
+L'aller-retour `Q` vers `Delta_P` par le code, puis `Delta_P` vers `Q` par
+l'annexe A, **boucle à 3.1e-15 en relatif** sur 45 combinaisons, 5 valeurs de
+`n` et 3 géométries. C'est la précision machine. Vérifié en permanence par
+`tests/test_coherence_annexe_A.py`.
+
+### Le facteur d'erreur est élevé à la puissance 1/n
+
+Avant correction, la résistance valait `Ri_faux = Ri_juste (3n+1)^(1-n)`. À
+**débit** imposé, `Delta_P` était donc surestimée de ce facteur. À **pression**
+imposée, l'inversion élève l'erreur à la puissance `1/n` :
+
+    Q_juste / Q_faux = (3n+1)^((1-n)/n)
+
+| n | sur la pression, `(3n+1)^(1-n)` | sur le débit, `(3n+1)^((1-n)/n)` |
+|---|---|---|
+| 0.2429 | 1.5135 | **5.5075** |
+| 0.3100 | 1.5741 | **4.3211** |
+| 0.3575 | 1.5972 | **3.7051** |
+| 0.4900 | 1.5859 | **2.5629** |
+| 0.8000 | 1.2773 | 1.3579 |
+| 1.0000 | 1.0000 | 1.0000 |
+
+**Conséquence : toute figure produite en inversant le modèle avant la
+correction du défaut #8 est affectée dans ces proportions**, et non dans celles
+de 10 à 37 % relevées sur la pression. Un tracé de débit contre pression, ou
+une vitesse d'impression déduite d'une pression appliquée, est faux d'un
+facteur 2.6 à 5.5 selon l'indice d'écoulement du matériau.
+
+### Piège annexe : l'angle du cône se déduit, il ne se déclare pas
+
+La branche conique analytique **n'utilise pas** l'argument `theta` qu'on lui
+passe : elle travaille avec `L`, `De` et `Do`, ce qui revient implicitement à
+
+    tan(theta) = (Do - De) / (2 L)
+
+Or `main.py` déclare `angle = 5.3` degrés alors que la géométrie livrée,
+`De = 0.45 mm`, `Do = 3.55 mm`, `L = 17.25 mm`, impose **5.1345 degrés**.
+
+Cette incohérence est **sans effet sur le modèle**, qui ignore l'argument. Elle
+n'est pas sans effet sur quiconque inverserait le modèle avec la forme de
+l'annexe A en prenant l'angle déclaré : le débit varie comme
+`tan(theta)^(1/n)`, donc l'écart s'amplifie quand `n` diminue.
+
+| n | erreur sur Q si l'on prend 5.3 degrés |
+|---|---|
+| 0.2429 | +14.03 % |
+| 0.3100 | +10.84 % |
+| 0.4900 | +6.73 % |
+| 0.8000 | +4.07 % |
+| 1.0000 | +3.24 % |
+
+Figé par `test_l_angle_doit_etre_celui_de_la_geometrie`.
