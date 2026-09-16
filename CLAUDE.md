@@ -252,3 +252,34 @@ provenance de chaque valeur soit lisible dans le code qui l'a écrite.
 **Tous les matériaux y sont en mode analytique.** Les valeurs `mP` et `R`
 présentes portent `provenance_ajustement = INCONNUE` et ne sont donc pas
 utilisées.
+
+## Le seuil d'écoulement compte-t-il ?
+
+    python3 tools/nombre_de_bingham.py --materiau "Parrafin wax-40%" --Do 3.55
+
+`tools/nombre_de_bingham.py` est un diagnostic **autonome, hors du chemin de
+calcul**. Il n'importe aucune fonction du modèle et réécrit ses formules
+volontairement, pour rester un contrôle indépendant.
+
+Il rend, sur une plage de vitesses, le taux de cisaillement pariétal apparent
+et corrigé, la contrainte pariétale, le nombre de Bingham et la part du seuil
+dans la contrainte totale, à la sortie **et à l'entrée** de buse pour une buse
+conique, l'entrée étant la section la moins cisaillée donc la plus sensible au
+seuil.
+
+| Part du seuil | Verdict | Conséquence sur la phase 7 |
+|---|---|---|
+| sous 1 % | seuil négligeable | la phase 7 se réduit à l'extension conique |
+| 1 % à 10 % | seuil marginal | le seuil doit figurer au modèle, sans urgence sur la solution exacte |
+| au-delà de 10 % | seuil gouvernant | la phase 7 est nécessaire dans son intégralité |
+
+Ces bornes sont des **tolérances de modélisation assumées**, pas des valeurs
+mesurées. Elles se règlent par `--negligeable` et `--gouvernant`.
+
+Ce qui est **démontré** : la part du seuil est exactement l'écart relatif sur
+`Delta_P` entre un traitement à seuil et un traitement en loi de puissance
+pure, puisque `Delta_P` est proportionnel à la contrainte pariétale.
+
+Ce qui est **supposé** : l'erreur due au bouchon central, celle que la
+correction de Rabinowitsch d'une loi de puissance manque, est du même ordre.
+La quantifier demande la solution exacte, objet de la phase 7.
