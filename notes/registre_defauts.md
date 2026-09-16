@@ -31,17 +31,96 @@
 | 20 | `calculateReqError` additionne sous une même racine trois termes de dimensions différentes | **corrigé**, phase 5. Propagation dérivée de la définition de `Ri`, homogène par construction |
 | 21 | La branche de Carreau n'a **aucun terme en `dn`**. La dérivée `d eta/d n` est absente de la somme en quadrature | **ouvert et gelé**. Arbitrage : branche non utilisée par les matériaux de l'étude, et rendue inopérante en conique par le défaut #11. **À traiter si quelqu'un branche un matériau de Carreau** |
 | 22 | Branche de Carreau, terme `deta5` : `ratio` apparaît à la puissance 1 là où la dérivation donne `ratio^((n-1)/a)` | **ouvert et gelé**, même arbitrage que #21. Sans effet numérique tant que `da` vaut zéro, ce qui est le cas aujourd'hui. **À traiter si quelqu'un branche un matériau de Carreau** |
+| 23 | Les paramètres rhéologiques de `EC3515-0%` et `EC3515-8%` se croisent à 4.88 1/s, et la formulation chargée devient MOINS visqueuse au-delà | **observation, non tranchée**. Ce n'est pas un défaut du code, c'est une anomalie des DONNÉES. Voir la section détaillée ci-dessous |
 
 ## Récapitulatif
 
 | Statut | Nombre | Numéros |
 |---|---|---|
-| corrigé | 11 | 3, 5, 6, 8, 9, 10, 14, 15, 17, 18, 19, 20 |
+| corrigé | 12 | 3, 5, 6, 8, 9, 10, 14, 15, 17, 18, 19, 20 |
 | encadré, non corrigeable en l'état | 1 | 1 |
 | ouvert et gelé | 5 | 2, 13, 16, 21, 22 |
 | reporté en phase 7 | 4 | 4, 7, 11, 12 |
+| observation sur les données, non tranchée | 1 | 23 |
 
 Le défaut 20 est le seul qui n'était pas dans le diagnostic initial de sept
 points : il a été trouvé en phase 4, en cherchant le facteur de conversion des
 grandeurs d'incertitude. Les défauts 19, 21 et 22 ont été trouvés de la même
 façon, en passant.
+
+
+## Observation #23 : croisement rhéologique entre EC3515-0% et EC3515-8%
+
+**Observation, pas conclusion.** Elle porte sur les DONNÉES de la base, pas sur
+le code.
+
+### Le constat
+
+| Feuille | n | K [Pa.s^n] |
+|---|---|---|
+| `EC3515-0%` | 0.49 | 3280 |
+| `EC3515-8%` | 0.31 | 4363 |
+
+Les deux contraintes pariétales `K gamma^n` se croisent à **4.8797 1/s**, où
+elles valent toutes deux 7 131 Pa, soit une viscosité apparente de 1 462 Pa.s.
+Au-delà, **la formulation chargée est la moins visqueuse** :
+
+| gamma (1/s) | tau 0% (Pa) | tau 8% (Pa) | rapport 0% / 8% |
+|---|---|---|---|
+| 0.5 | 2 335 | 3 519 | 0.664 |
+| 4.88 | 7 131 | 7 131 | 1.000 |
+| 100 | 31 324 | 18 188 | 1.722 |
+| 1 000 | 96 800 | 37 135 | **2.607** |
+| 10 000 | 299 140 | 75 820 | 3.945 |
+
+C'est ce qui explique que `EC3515-8%` demande **moins** de pression que
+`EC3515-0%` dans la référence.
+
+### Où se situe l'écoulement réel
+
+Cisaillement pariétal corrigé, buse conique `De = 0.45 mm`, `Do = 3.55 mm` :
+
+| v (mm/s) | sortie, 0% | sortie, 8% | entrée, 0% | entrée, 8% |
+|---|---|---|---|---|
+| 10 | 224.0 | 276.7 | 0.456 | 0.564 |
+| 100 | 2 240 | 2 767 | 4.563 | 5.636 |
+| 300 | 6 721 | 8 301 | 13.69 | 16.91 |
+
+**À la sortie de buse, tout l'écoulement est au-dessus du croisement**, de 10^2
+à 10^4 1/s. **À l'entrée, non** : le cisaillement y vaut 0.46 à 17 1/s et
+traverse le croisement à 4.88 1/s. Cette section pèse peu dans `Delta_P`, 22 %
+environ, mais la plage de cisaillement réellement parcourue dans la buse
+s'étend donc sur **quatre ordres de grandeur**, de 0.46 à 8 300 1/s.
+
+### Trois lectures possibles, aucune tranchée
+
+1. **Ajustements sur des fenêtres de cisaillement différentes, puis
+   extrapolés.** Deux ajustements en loi de puissance réalisés sur des
+   intervalles disjoints se croisent presque toujours hors de leurs intervalles
+   respectifs. C'est l'explication la plus économique, et elle est invérifiable
+   en l'état : aucune feuille ne porte sa plage de validité.
+2. **Croisement rhéologique réel.** Une charge peut abaisser la viscosité à
+   haut cisaillement, par exemple par glissement à la paroi ou par
+   structuration. Ce serait un résultat en soi, à documenter comme tel.
+3. **Paramètres erronés sur une feuille déjà contaminée.** `EC3515-8%` porte en
+   colonne C des valeurs `mP` et `R` identiques à seize chiffres à celles de
+   `Wax-Bruneaux` et `Wax-JFC`, donc au moins un copier-coller avéré sur cette
+   feuille. Voir `notes/colonne_C_materials_xls.md`.
+
+### Conséquence à inscrire dans le modèle
+
+**Tout ajustement rhéologique entrant dans la base doit porter sa plage de
+cisaillement de validité**, et le code doit **avertir à l'exécution quand le
+cisaillement pariétal calculé sort de cette plage**.
+
+À faire en phase 7 :
+
+- ajouter les colonnes `gamma_min` et `gamma_max` à `materiaux.xlsx`, et les
+  renseigner pour tout nouveau matériau,
+- vérifier le cisaillement pariétal contre cette plage en chaque section de
+  buse, et non seulement à la sortie, puisque l'entrée d'une buse conique peut
+  être quatre décades plus bas,
+- émettre un avertissement visible, sur le modèle de celui du mode empirique,
+  quand l'écoulement sort de la plage d'ajustement. Une extrapolation
+  silencieuse d'une loi de puissance sur quatre décades n'est pas défendable
+  devant un relecteur.

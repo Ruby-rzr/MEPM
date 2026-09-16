@@ -89,8 +89,9 @@ les huit précédentes irreproductibles. La base de travail est désormais
 
 ## Ce qui bloque la phase 7
 
-**Il manque un jeu Herschel-Bulkley ajusté sur l'EC-3515, avec ses intervalles
-de confiance.**
+**Il manque un jeu Herschel-Bulkley ajusté sur les formulations de l'article,
+NEAT et 10FS%, avec ses intervalles de confiance et sa plage de cisaillement de
+validité.**
 
 `Parrafin wax-40%`, seul matériau à seuil de la base, ne peut pas servir de cas
 de validation : avec `n = 0.04` et `K = 2.85e6 Pa.s^n`, la loi de puissance
@@ -137,29 +138,42 @@ Rappel inscrit dans le script : la part pondérée est l'écart **démontré** d
 l'omission du seuil. L'erreur due au bouchon central, celle que la correction
 de Rabinowitsch manque, n'est pas calculée et est **supposée** du même ordre.
 
-## Les nombres à confronter aux mesures
+## Aucun matériau de l'article ne figure dans la base
 
-Pressions prédites, **mode analytique, aucun paramètre ajusté**, après
-correction du défaut #8. Buse conique `De = 0.45 mm`, `Do = 3.55 mm`,
-`L = 17.25 mm`, `alpha = 36`, `theta = 5.3 deg`, `P_amb = 101325 Pa`.
+**`materials.xls` et `materiaux.xlsx` ne décrivent AUCUNE des formulations de
+l'article, qui portent sur NEAT et 10FS%, silice pyrogénée.** Les paramètres
+rhéologiques de ces deux formulations viendront d'un ajustement à fournir. Tant
+qu'ils ne sont pas dans la base, **le modèle ne peut produire aucune pression
+comparable aux mesures de l'article**.
 
-| v (mm/s) | EC3515-0% (kPa) | EC3515-8% (kPa) |
-|---|---|---|
-| 10 | 771.72 | 610.69 |
-| 50 | 1 576.44 | 940.22 |
-| 100 | 2 173.04 | 1 141.31 |
-| 200 | 3 010.93 | 1 390.61 |
-| 300 | 3 650.43 | 1 563.29 |
+Ne pas se servir des feuilles `EC3515-0%` ou `EC3515-8%` comme substituts :
+elles décrivent d'autres formulations, et la seconde porte en outre une
+anomalie, voir `notes/registre_defauts.md`, observation #23.
 
-`EC3515-0%` : `n = 0.49`, `K = 3280 Pa.s^n`. `EC3515-8%` : `n = 0.31`,
-`K = 4363 Pa.s^n`. Les deux à `rho = 973 kg/m^3`.
+### Cas de non-régression, EC3515-0%
+
+Cette feuille sert uniquement de **cas de non-régression**, pas de cas de
+validation. Ses pressions sont celles que le harnais rejoue à chaque exécution
+et servent à détecter une dérive du code, rien de plus.
+
+Mode analytique, aucun paramètre ajusté, après correction du défaut #8. Buse
+conique `De = 0.45 mm`, `Do = 3.55 mm`, `L = 17.25 mm`, `alpha = 36`,
+`theta = 5.3 deg`, `P_amb = 101325 Pa`, `n = 0.49`, `K = 3280 Pa.s^n`,
+`rho = 973 kg/m^3`.
+
+| v (mm/s) | P prédite (kPa) |
+|---|---|
+| 10 | 771.72 |
+| 50 | 1 576.44 |
+| 100 | 2 173.04 |
+| 200 | 3 010.93 |
+| 300 | 3 650.43 |
 
 Ces valeurs incluent `P_amb`. Avant correction du défaut #8 elles valaient
-respectivement 1 164.50 et 3 386.85 kPa à 10 et 100 mm/s pour `EC3515-0%`,
-soit **de 10 à 37 % de plus**. Toute valeur antérieure à cette correction est
-à écarter.
+1 164.50 kPa à 10 mm/s et 3 386.85 kPa à 100 mm/s, soit **de 10 à 37 % de
+plus**. Toute valeur antérieure à cette correction est à écarter.
 
-Elles sont reproductibles à tout moment :
+Reproductibles à tout moment :
 
     python3 -c "import json;r=json.load(open('tests/references/reference_v9_phase6.json'))['resultats'];print(r['B|EC3515-0%|conique']['sorties']['P_kPa'])"
 
@@ -168,8 +182,11 @@ Elles sont reproductibles à tout moment :
 **Phase 7, extension à seuil.** Réécrire la branche conique pour qu'elle
 utilise la viscosité et le seuil, ce qui ferme les défauts #4, #7, #11 et #12.
 Remplacer la correction de Weissenberg-Rabinowitsch d'une loi de puissance par
-celle qui convient au modèle retenu. Ne pas commencer sans les équations de
-référence : aucune relation ne doit être inventée.
+celle qui convient au modèle retenu. Ajouter les colonnes `gamma_min` et
+`gamma_max` à `materiaux.xlsx` et **avertir à l'exécution quand le cisaillement
+pariétal calculé sort de la plage de validité de l'ajustement**, voir
+l'observation #23. Ne pas commencer sans les équations de référence : aucune
+relation ne doit être inventée.
 
 **Phase 8, confrontation aux mesures.** Réajuster `R` et `mP` sur les pressions
 mesurées, par un script versionné, en SI, ce qui fait disparaître le `10**6`

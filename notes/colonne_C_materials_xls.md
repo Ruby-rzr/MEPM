@@ -27,6 +27,13 @@ chiffres, pour trois matériaux sans rapport :
 Un ajustement ne peut pas donner le même résultat pour ces trois-là. Au moins
 deux des trois sont un copier-coller. Ces valeurs sont écartées.
 
+Conséquence au-delà de la colonne C : `EC3515-8%` est une feuille dont on sait
+qu'elle a été contaminée par un copier-coller. C'est l'une des trois lectures
+possibles de l'anomalie rhéologique décrite dans `notes/registre_defauts.md`,
+observation #23, où les paramètres `n` et `K` de cette feuille produisent une
+formulation chargée moins visqueuse que la formulation non chargée au-delà de
+4.88 1/s.
+
 ## EC3515-0%, le seul jeu possiblement propre
 
 Comparé au modèle **corrigé**, c'est à dire après correction du défaut #8, cet
