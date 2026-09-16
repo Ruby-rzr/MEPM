@@ -263,11 +263,29 @@ volontairement, pour rester un contrôle indépendant.
 
 Il rend, sur une plage de vitesses, le taux de cisaillement pariétal apparent
 et corrigé, la contrainte pariétale, le nombre de Bingham et la part du seuil
-dans la contrainte totale, à la sortie **et à l'entrée** de buse pour une buse
-conique, l'entrée étant la section la moins cisaillée donc la plus sensible au
-seuil.
+dans la contrainte totale.
 
-| Part du seuil | Verdict | Conséquence sur la phase 7 |
+### Le critère est la part du seuil pondérée par la chute de pression
+
+En buse conique, la part du seuil est maximale à l'**entrée**, où le
+cisaillement est le plus faible. Mais le gradient de pression local varie comme
+`R^(-3n-1)` : la chute de pression se concentre côté **sortie**, et la part
+élevée de l'entrée s'applique à une portion qui pèse presque rien. Sur
+EC3515-8% avec un seuil de 120 Pa à 10 mm/s, **78 % de `Delta_P` s'accumulent
+dans le tiers du cône côté sortie**.
+
+Le critère qui décide est donc
+
+    f_pondérée = intégrale( (tau_y/tau_w) dP/dz dz ) / intégrale( dP/dz dz )
+
+calculée par intégration numérique le long de l'axe. Les valeurs en entrée et
+en sortie sont conservées et affichées : elles **encadrent** la pondérée.
+
+Sur le même cas : sortie 0.48 %, entrée 3.18 %, **pondérée 1.07 %**. Un facteur
+trois entre le maximum et le critère, exactement dans la zone où se prend la
+décision.
+
+| Part du seuil pondérée | Verdict | Conséquence sur la phase 7 |
 |---|---|---|
 | sous 1 % | seuil négligeable | la phase 7 se réduit à l'extension conique |
 | 1 % à 10 % | seuil marginal | le seuil doit figurer au modèle, sans urgence sur la solution exacte |
@@ -276,9 +294,13 @@ seuil.
 Ces bornes sont des **tolérances de modélisation assumées**, pas des valeurs
 mesurées. Elles se règlent par `--negligeable` et `--gouvernant`.
 
-Ce qui est **démontré** : la part du seuil est exactement l'écart relatif sur
+Sur une buse cylindrique, la pondérée, la valeur en sortie et le maximum
+**coïncident**, la section étant constante. C'est le contrôle de cohérence du
+script.
+
+Ce qui est **démontré** : la part pondérée est exactement l'écart relatif sur
 `Delta_P` entre un traitement à seuil et un traitement en loi de puissance
-pure, puisque `Delta_P` est proportionnel à la contrainte pariétale.
+pure, puisque `dP/dz` est proportionnel à la contrainte pariétale.
 
 Ce qui est **supposé** : l'erreur due au bouchon central, celle que la
 correction de Rabinowitsch d'une loi de puissance manque, est du même ordre.

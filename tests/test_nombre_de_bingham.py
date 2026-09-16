@@ -7,9 +7,16 @@ Ce script decide si la phase 7 est necessaire dans son integralite ou si elle
 se reduit a l'extension conique. Il doit donc etre verifie, meme s'il vit hors
 du chemin de calcul.
 
-Trois controles :
+Controles :
   - il retrouve les chiffres etablis a la main pour Parrafin wax-40%,
     0.0129 pour cent a 10 mm/s et 0.0113 pour cent a 300 mm/s ;
+  - il retrouve les trois valeurs du cas EC3515-8% a 120 Pa de seuil,
+    0.4789 pour cent en sortie, 3.1810 pour cent en entree et 1.0715 pour cent
+    en ponderee, ainsi que les 78.3 pour cent de Delta_P accumules dans le
+    tiers cote sortie ;
+  - l'integration numerique converge vers la forme fermee de l'integrale ;
+  - SUR UNE BUSE CYLINDRIQUE, la ponderee, la valeur en sortie et le maximum
+    COINCIDENT, la section etant constante. C'est le controle de coherence ;
   - ses formules sont coherentes entre elles et avec la definition de la
     correction de Rabinowitsch ;
   - le verdict bascule bien aux bornes annoncees.
@@ -28,9 +35,30 @@ if RACINE not in sys.path:
 import pytest                                          # noqa: E402
 
 from tools.nombre_de_bingham import (                   # noqa: E402
-    SEUIL_GOUVERNANT_PAR_DEFAUT, SEUIL_NEGLIGEABLE_PAR_DEFAUT,
-    cisaillement_apparent, cisaillement_corrige, contrainte_parietale,
-    correction_rabinowitsch, debit_volumique, diagnostic, verdict)
+    FRACTION_LONGUEUR_COTE_SORTIE, SEUIL_GOUVERNANT_PAR_DEFAUT,
+    SEUIL_NEGLIGEABLE_PAR_DEFAUT, cisaillement_apparent, cisaillement_corrige,
+    contrainte_parietale, correction_rabinowitsch, debit_volumique, diagnostic,
+    part_du_seuil_ponderee, verdict)
+
+# Cas de reference du critere pondere : EC3515-8% avec un seuil hypothetique.
+EPOXY_A_SEUIL = dict(K=4363.0, n=0.31, tau_y=120.0)
+
+
+def integrale_fermee(K, n, tau_y, Q, R1, R2):
+    """Integrale de dP/dz entre deux rayons, forme fermee.
+
+    dP/dz = 2 tau_w(R)/R avec tau_w = tau_y + K (A R^-3)^n et
+    A = ((3n+1)/n) Q/pi. A un facteur constant pres, commun au numerateur et au
+    denominateur de tout rapport,
+
+        integrale = tau_y ln(R2/R1) + (K A^n / 3n) (R1^-3n - R2^-3n)
+
+    C'est une integration elementaire de l'expression deja etablie dans le
+    depot, utilisee ici comme oracle independant de l'integration numerique.
+    """
+    A = ((3 * n + 1) / n) * Q / math.pi
+    return (tau_y * math.log(R2 / R1)
+            + (K * A ** n / (3 * n)) * (R1 ** (-3 * n) - R2 ** (-3 * n)))
 
 # Parrafin wax-40%, materials.xls. Seul materiau a seuil de la base.
 PARRAFIN = dict(K=2850000.0, n=0.04, tau_y=490.0)
@@ -54,7 +82,9 @@ def test_parrafin_wax_est_declare_negligeable():
     """Le verdict de reference : ce materiau ne teste pas un modele a seuil."""
     lignes = diagnostic(vitesses_mm_par_s=[10.0, 300.0], **PARRAFIN, **GEOMETRIE)
     assert all(l["verdict"] == "seuil negligeable" for l in lignes)
-    assert all(l["verdict_entree"] == "seuil negligeable" for l in lignes)
+    # Meme la part la plus defavorable, celle de l'entree, reste negligeable.
+    assert all(l["part_du_seuil_entree"] < SEUIL_NEGLIGEABLE_PAR_DEFAUT
+               for l in lignes)
 
 
 def test_la_part_du_seuil_est_l_ecart_sur_delta_P():
@@ -68,6 +98,88 @@ def test_la_part_du_seuil_est_l_ecart_sur_delta_P():
     sans_seuil = ligne["tau_visqueux"]
     assert (avec_seuil - sans_seuil) / avec_seuil == pytest.approx(
         ligne["part_du_seuil"], rel=1e-12)
+
+
+def test_retrouve_les_trois_valeurs_du_cas_epoxy_a_seuil():
+    """Sortie, entree et ponderee sur EC3515-8% avec tau_y = 120 Pa a 10 mm/s."""
+    ligne = diagnostic(vitesses_mm_par_s=[10.0], **EPOXY_A_SEUIL,
+                       **GEOMETRIE)[0]
+    assert ligne["part_du_seuil"] == pytest.approx(0.004789, rel=1e-3)
+    assert ligne["part_du_seuil_entree"] == pytest.approx(0.031810, rel=1e-3)
+    assert ligne["part_du_seuil_ponderee"] == pytest.approx(0.010715, rel=1e-3)
+    assert ligne["fraction_delta_P_cote_sortie"] == pytest.approx(0.7830,
+                                                                  rel=1e-3)
+    assert ligne["verdict"] == "seuil marginal"
+
+
+def test_la_ponderee_est_encadree_par_la_sortie_et_l_entree():
+    """La moyenne ponderee ne peut pas sortir de l'intervalle des extremites."""
+    for vitesse in (10.0, 100.0, 300.0):
+        ligne = diagnostic(vitesses_mm_par_s=[vitesse], **EPOXY_A_SEUIL,
+                           **GEOMETRIE)[0]
+        assert (ligne["part_du_seuil"] <= ligne["part_du_seuil_ponderee"]
+                <= ligne["part_du_seuil_entree"]), (
+            f"v = {vitesse} : ponderee hors de l'encadrement")
+
+
+def test_le_verdict_porte_sur_la_ponderee_et_non_sur_le_maximum():
+    """Le maximum dirait 'marginal' la ou la ponderee dit 'negligeable'.
+
+    C'est tout l'objet de la correction : la part elevee de l'entree s'applique
+    a une portion de buse qui ne pese presque rien dans Delta_P.
+    """
+    ligne = diagnostic(vitesses_mm_par_s=[10.0], K=4363.0, n=0.31, tau_y=50.0,
+                       **GEOMETRIE)[0]
+    assert ligne["part_du_seuil_maximale"] > SEUIL_NEGLIGEABLE_PAR_DEFAUT
+    assert ligne["part_du_seuil_ponderee"] < SEUIL_NEGLIGEABLE_PAR_DEFAUT
+    assert ligne["verdict"] == "seuil negligeable"
+
+
+def test_sur_une_buse_cylindrique_les_trois_valeurs_coincident():
+    """CONTROLE DE COHERENCE. Section constante, donc aucune ponderation."""
+    for vitesse in (10.0, 100.0, 300.0):
+        ligne = diagnostic(vitesses_mm_par_s=[vitesse], **EPOXY_A_SEUIL,
+                           De_mm=0.45, L_mm=17.25, Do_mm=None)[0]
+        assert ligne["part_du_seuil_entree"] == pytest.approx(
+            ligne["part_du_seuil"], rel=1e-14)
+        assert ligne["part_du_seuil_maximale"] == pytest.approx(
+            ligne["part_du_seuil"], rel=1e-14)
+        assert ligne["part_du_seuil_ponderee"] == pytest.approx(
+            ligne["part_du_seuil"], rel=1e-12), (
+            f"v = {vitesse} : la ponderee devrait egaler la valeur en sortie "
+            "sur une section constante")
+        assert ligne["fraction_delta_P_cote_sortie"] == pytest.approx(
+            FRACTION_LONGUEUR_COTE_SORTIE, rel=1e-12), (
+            "sur une section constante, le tiers de la longueur porte le "
+            "tiers de Delta_P")
+
+
+def test_l_integration_numerique_converge_vers_la_forme_fermee():
+    """L'oracle est l'integrale analytique, independante du maillage."""
+    K, n, tau_y = EPOXY_A_SEUIL["K"], EPOXY_A_SEUIL["n"], EPOXY_A_SEUIL["tau_y"]
+    De, Do = 0.45e-3, 3.55e-3
+    Q = debit_volumique(De, 0.010)
+    rayon_sortie, rayon_entree = De / 2, Do / 2
+
+    total = integrale_fermee(K, n, tau_y, Q, rayon_sortie, rayon_entree)
+    attendu_ponderee = tau_y * math.log(rayon_entree / rayon_sortie) / total
+    rayon_tiers = rayon_entree + (rayon_sortie - rayon_entree) * (
+        1.0 - FRACTION_LONGUEUR_COTE_SORTIE)
+    attendu_fraction = integrale_fermee(
+        K, n, tau_y, Q, rayon_sortie, rayon_tiers) / total
+
+    ponderee, fraction = part_du_seuil_ponderee(
+        K, n, tau_y, Q, rayon_sortie, rayon_entree)
+    assert ponderee == pytest.approx(attendu_ponderee, rel=1e-5)
+    assert fraction == pytest.approx(attendu_fraction, rel=1e-5)
+
+    # Convergence quadratique : quadrupler les tranches divise l'ecart par
+    # environ quatre. On exige au moins un facteur trois.
+    ecart = [abs(part_du_seuil_ponderee(K, n, tau_y, Q, rayon_sortie,
+                                        rayon_entree, tranches=N)[0]
+                 - attendu_ponderee) for N in (250, 1000)]
+    assert ecart[0] > 3 * ecart[1], (
+        f"convergence trop lente : {ecart[0]:.3e} puis {ecart[1]:.3e}")
 
 
 def test_le_cisaillement_corrige_est_bien_le_produit():
@@ -95,6 +207,15 @@ def test_en_conique_l_entree_est_plus_sensible_que_la_sortie():
     ligne = lignes[0]
     assert ligne["gamma_corrige_entree"] < ligne["gamma_corrige"]
     assert ligne["part_du_seuil_entree"] > ligne["part_du_seuil"]
+
+
+def test_la_chute_de_pression_se_concentre_cote_sortie():
+    """Le gradient variant comme R^(-3n-1), le tiers cote sortie domine."""
+    ligne = diagnostic(vitesses_mm_par_s=[10.0], **EPOXY_A_SEUIL,
+                       **GEOMETRIE)[0]
+    assert ligne["fraction_delta_P_cote_sortie"] > 0.5, (
+        "sur cette geometrie, le tiers cote sortie doit porter la majorite de "
+        "Delta_P, c'est ce qui justifie la ponderation")
 
 
 @pytest.mark.parametrize("part, attendu", [

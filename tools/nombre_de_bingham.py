@@ -27,20 +27,40 @@ pure suffit et la phase 7 se reduit a l'extension conique. Si elle est de
 l'ordre de la dizaine de pour cent, la solution exacte de l'ecoulement
 Herschel-Bulkley en conduite devient necessaire.
 
+LE CRITERE EST LA PART DU SEUIL PONDEREE PAR LA CHUTE DE PRESSION
+En buse conique, la part du seuil est la plus grande a l'ENTREE, ou le
+cisaillement est le plus faible. Mais le gradient de pression local varie comme
+R^(-3n-1) : la chute de pression se concentre cote SORTIE, et la part elevee de
+l'entree s'applique a une portion qui pese presque rien. Sur EC3515-8% avec un
+seuil de 120 Pa a 10 mm/s, 78 pour cent de Delta_P s'accumulent dans le tiers
+du cone cote sortie.
+
+Le critere qui decide est donc la part du seuil MOYENNEE le long de la buse et
+PONDEREE par la contribution locale a Delta_P :
+
+    f_ponderee = integrale( (tau_y/tau_w) dP/dz dz ) / integrale( dP/dz dz )
+
+Avec dP/dz = 2 tau_w(R)/R, le numerateur se simplifie en integrale(2 tau_y/R),
+et f_ponderee est EXACTEMENT l'ecart relatif sur Delta_P entre un traitement a
+seuil et un traitement en loi de puissance pure. C'est la generalisation, a une
+section variable, de l'identite valable pour une section unique.
+
+Les parts en entree et en sortie sont conservees et affichees : elles encadrent
+la ponderee, qui ne peut pas sortir de leur intervalle.
+
 CE QUE CE SCRIPT NE FAIT PAS
 Il ne calcule PAS la solution exacte de l'ecoulement Herschel-Bulkley. Il
 mesure la PART DU SEUIL dans la contrainte parietale, evaluee avec la
 correction de la loi de puissance. C'est une estimation de premier ordre, et
 elle est utilisee ici comme INDICATEUR, pas comme borne d'erreur.
 
-  DEMONTRE   la part du seuil f = tau_y / tau_paroi est exactement l'ecart
-             relatif sur Delta_P entre le traitement a seuil et le traitement
-             en loi de puissance pure, puisque Delta_P est proportionnel a
-             tau_paroi.
+  DEMONTRE   la part du seuil ponderee est exactement l'ecart relatif sur
+             Delta_P entre le traitement a seuil et le traitement en loi de
+             puissance pure, puisque dP/dz est proportionnel a tau_w.
   SUPPOSE    l'erreur due au bouchon central, celle que la correction de
-             Rabinowitsch manque, est du MEME ORDRE que f. Ce n'est pas
-             demontre. La quantifier demande la solution exacte, qui sera
-             ecrite en phase 7 a partir des equations de reference.
+             Rabinowitsch manque, est du MEME ORDRE. Ce n'est pas demontre. La
+             quantifier demande la solution exacte, qui sera ecrite en phase 7
+             a partir des equations de reference.
 
 Usage :
 
@@ -74,9 +94,10 @@ MILLIMETRE = 1e-3          # 1 mm en m
 # ---------------------------------------------------------------------------
 # Bornes du verdict.
 #
-# Elles portent sur f, la part du seuil dans la contrainte parietale, qui est
+# Elles portent sur la part du seuil PONDEREE par la chute de pression, qui est
 # exactement l'ecart relatif sur Delta_P entre un traitement a seuil et un
-# traitement en loi de puissance pure.
+# traitement en loi de puissance pure. Pas sur la part en sortie, pas sur le
+# maximum entre les sections : voir la docstring de module.
 #
 # Le choix de 1 pour cent : en dessous, negliger le seuil deplace la pression
 # predite de moins d'un centieme, ce qui est petit devant la dispersion
@@ -97,6 +118,16 @@ SEUIL_NEGLIGEABLE_PAR_DEFAUT = 0.01     # 1 %
 SEUIL_GOUVERNANT_PAR_DEFAUT = 0.10      # 10 %
 
 VITESSES_PAR_DEFAUT = [10.0, 25.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0]
+
+# Nombre de tranches de l'integration numerique le long de l'axe. 2000 suffit :
+# l'ecart a la forme fermee est verifie sous 1e-6 en relatif par
+# tests/test_nombre_de_bingham.py.
+TRANCHES_INTEGRATION = 2000
+
+# Portion de la longueur, cote sortie, dont on rapporte la contribution a
+# Delta_P. C'est l'indicateur qui explique l'ecart entre la part en sortie, la
+# part en entree et la ponderee.
+FRACTION_LONGUEUR_COTE_SORTIE = 1.0 / 3.0
 
 
 def debit_volumique(diametre_sortie_m, vitesse_m_par_s):
@@ -154,6 +185,104 @@ def contrainte_parietale(K, n, tau_y, cisaillement_1_par_s):
     return tau_y + tau_visqueux, tau_visqueux
 
 
+def rayon_a_l_abscisse(abscisse_reduite, rayon_sortie_m, rayon_entree_m):
+    """Rayon de la buse a une abscisse reduite, 0 a l'entree et 1 a la sortie.
+
+    Le rayon varie lineairement avec l'abscisse : c'est l'hypothese de la buse
+    conique du modele. Pour une buse cylindrique, les deux rayons sont egaux et
+    le profil est constant.
+    """
+    return rayon_entree_m + (rayon_sortie_m - rayon_entree_m) * abscisse_reduite
+
+
+def profil_le_long_de_la_buse(K, n, tau_y, debit_m3_par_s, rayon_sortie_m,
+                              rayon_entree_m, abscisse_debut=0.0,
+                              abscisse_fin=1.0, tranches=None):
+    """Echantillonne la buse sur un intervalle d'abscisse reduite.
+
+    Args:
+        K (float): indice de consistance. [Pa.s^n]
+        n (float): indice d'ecoulement. [-]
+        tau_y (float): seuil d'ecoulement. [Pa]
+        debit_m3_par_s (float): debit volumique. [m^3/s]
+        rayon_sortie_m, rayon_entree_m (float): rayons aux deux extremites. [m]
+        abscisse_debut, abscisse_fin (float): bornes en abscisse reduite, 0 a
+            l'entree et 1 a la sortie. L'echantillonnage est uniforme sur cet
+            intervalle, de sorte que toute borne est atteinte exactement.
+        tranches (int): nombre de tranches, TRANCHES_INTEGRATION par defaut.
+
+    Returns:
+        (pas, rayons, tau_paroi, gradient), ou gradient vaut dP/dz a un facteur
+        multiplicatif constant pres, qui se simplifie dans tous les rapports
+        calcules ici.
+    """
+    tranches = TRANCHES_INTEGRATION if tranches is None else tranches
+    pas = (abscisse_fin - abscisse_debut) / tranches
+    rayons = [rayon_a_l_abscisse(abscisse_debut + k * pas,
+                                 rayon_sortie_m, rayon_entree_m)
+              for k in range(tranches + 1)]
+    cisaillements = [((3.0 * n + 1.0) / n) * debit_m3_par_s
+                     / (math.pi * R ** 3) for R in rayons]
+    tau_paroi = [tau_y + K * g ** n for g in cisaillements]
+    # dP/dz = 2 tau_w / R. Le facteur 2 se simplifie partout, on le garde pour
+    # que la grandeur reste lisible.
+    gradient = [2.0 * t / R for t, R in zip(tau_paroi, rayons)]
+    return pas, rayons, tau_paroi, gradient
+
+
+def _integre(valeurs, pas):
+    """Integrale par la methode des trapezes, pas constant."""
+    return pas * (sum(valeurs) - 0.5 * (valeurs[0] + valeurs[-1]))
+
+
+def _integrale_gradient(K, n, tau_y, debit_m3_par_s, rayon_sortie_m,
+                        rayon_entree_m, abscisse_debut, abscisse_fin,
+                        tranches=None):
+    """Integrale de dP/dz sur un intervalle d'abscisse reduite."""
+    pas, _, _, gradient = profil_le_long_de_la_buse(
+        K, n, tau_y, debit_m3_par_s, rayon_sortie_m, rayon_entree_m,
+        abscisse_debut, abscisse_fin, tranches)
+    return _integre(gradient, pas)
+
+
+def part_du_seuil_ponderee(K, n, tau_y, debit_m3_par_s, rayon_sortie_m,
+                           rayon_entree_m, tranches=None):
+    """Part du seuil moyennee le long de la buse, ponderee par dP/dz.
+
+        f_ponderee = integrale( (tau_y/tau_w) dP/dz dz )
+                     / integrale( dP/dz dz )
+
+    Comme dP/dz = 2 tau_w/R, le numerateur se reduit a integrale(2 tau_y/R).
+    C'est EXACTEMENT l'ecart relatif sur Delta_P entre un traitement a seuil et
+    un traitement en loi de puissance pure.
+
+    L'integration est numerique, par trapezes, sur un maillage uniforme en
+    abscisse. La portion cote sortie est integree sur son PROPRE maillage
+    uniforme, et non par selection de tranches dans le maillage global : ainsi
+    sa borne est atteinte exactement et la convergence reste quadratique.
+
+    Returns:
+        (f_ponderee, fraction_delta_P_cote_sortie), la seconde valeur etant la
+        part de Delta_P accumulee dans la portion FRACTION_LONGUEUR_COTE_SORTIE
+        de la longueur, cote sortie.
+    """
+    pas, rayons, _, gradient = profil_le_long_de_la_buse(
+        K, n, tau_y, debit_m3_par_s, rayon_sortie_m, rayon_entree_m,
+        tranches=tranches)
+
+    total = _integre(gradient, pas)
+    if not total:
+        return float("nan"), float("nan")
+
+    contribution_seuil = [2.0 * tau_y / R for R in rayons]
+    f_ponderee = _integre(contribution_seuil, pas) / total
+
+    cote_sortie = _integrale_gradient(
+        K, n, tau_y, debit_m3_par_s, rayon_sortie_m, rayon_entree_m,
+        1.0 - FRACTION_LONGUEUR_COTE_SORTIE, 1.0, tranches)
+    return f_ponderee, cote_sortie / total
+
+
 def verdict(part_du_seuil, negligeable, gouvernant):
     """Qualifie la part du seuil. Voir les bornes en tete de module."""
     if part_du_seuil >= gouvernant:
@@ -199,7 +328,19 @@ def diagnostic(K, n, tau_y, De_mm, L_mm, vitesses_mm_par_s, Do_mm=None,
         #                 seuil au terme visqueux seul.
         bi_visqueux = tau_y / tau_visqueux if tau_visqueux else float("inf")
 
-        ligne = dict(
+        # En buse conique, le cisaillement parietal est MINIMAL a l'entree, ou
+        # le rayon est le plus grand, donc la part du seuil y est MAXIMALE.
+        # Cette valeur encadre la ponderee, elle ne la remplace pas : la chute
+        # de pression se concentre cote sortie.
+        diametre_entree = Do if Do is not None else De
+        gamma_entree = cisaillement_corrige(Q, diametre_entree, n)
+        tau_entree, _ = contrainte_parietale(K, n, tau_y, gamma_entree)
+        part_entree = tau_y / tau_entree if tau_entree else float("nan")
+
+        ponderee, fraction_cote_sortie = part_du_seuil_ponderee(
+            K, n, tau_y, Q, De / 2.0, diametre_entree / 2.0)
+
+        lignes.append(dict(
             v_mm_par_s=v_mm,
             gamma_apparent=gamma_app,
             gamma_corrige=gamma_cor,
@@ -208,24 +349,14 @@ def diagnostic(K, n, tau_y, De_mm, L_mm, vitesses_mm_par_s, Do_mm=None,
             bi_paroi=part,
             bi_visqueux=bi_visqueux,
             part_du_seuil=part,
-            verdict=verdict(part, negligeable, gouvernant),
-        )
-
-        if Do is not None:
-            # En buse conique, le cisaillement parietal est MINIMAL a
-            # l'entree, ou le rayon est le plus grand, donc la part du seuil y
-            # est MAXIMALE. C'est la section qui decide, pas la sortie.
-            gamma_entree = cisaillement_corrige(Q, Do, n)
-            tau_entree, tau_visqueux_entree = contrainte_parietale(
-                K, n, tau_y, gamma_entree)
-            part_entree = tau_y / tau_entree if tau_entree else float("nan")
-            ligne.update(
-                gamma_corrige_entree=gamma_entree,
-                tau_paroi_entree=tau_entree,
-                part_du_seuil_entree=part_entree,
-                verdict_entree=verdict(part_entree, negligeable, gouvernant),
-            )
-        lignes.append(ligne)
+            gamma_corrige_entree=gamma_entree,
+            tau_paroi_entree=tau_entree,
+            part_du_seuil_entree=part_entree,
+            part_du_seuil_maximale=max(part, part_entree),
+            part_du_seuil_ponderee=ponderee,
+            fraction_delta_P_cote_sortie=fraction_cote_sortie,
+            verdict=verdict(ponderee, negligeable, gouvernant),
+        ))
     return lignes
 
 
@@ -234,9 +365,9 @@ def affiche(lignes, K, n, tau_y, De_mm, L_mm, Do_mm, negligeable, gouvernant,
     """Imprime le tableau de diagnostic et la conclusion."""
     conique = Do_mm is not None
 
-    print("=" * 78)
+    print("=" * 84)
     print(f"Diagnostic du seuil d'ecoulement : {etiquette}")
-    print("=" * 78)
+    print("=" * 84)
     print(f"  K     = {K!r} Pa.s^n")
     print(f"  n     = {n!r}")
     print(f"  tau_y = {tau_y!r} Pa")
@@ -246,11 +377,12 @@ def affiche(lignes, K, n, tau_y, De_mm, L_mm, Do_mm, negligeable, gouvernant,
           f"{correction_rabinowitsch(n):.6f}")
     print(f"  bornes : negligeable sous {negligeable:.3%}, "
           f"gouvernant au-dela de {gouvernant:.3%}")
+    print(f"  integration : {TRANCHES_INTEGRATION} tranches le long de l'axe")
 
-    print("\n  A LA SORTIE DE BUSE, section la plus cisaillee\n")
-    entetes = ["v (mm/s)", "gamma_app", "gamma_corr", "tau_visq",
-               "tau_paroi", "Bi = ty/tw", "ty/tvisq", "part du seuil"]
-    largeurs = [9, 12, 12, 12, 12, 11, 11, 14]
+    print("\n  ETAT A LA SORTIE DE BUSE, section la plus cisaillee\n")
+    entetes = ["v (mm/s)", "gamma_app", "gamma_corr", "tau_visq", "tau_paroi",
+               "Bi = ty/tw", "ty/tvisq"]
+    largeurs = [9, 12, 12, 12, 12, 11, 11]
     print("  " + "  ".join(e.rjust(l) for e, l in zip(entetes, largeurs)))
     print("  " + "  ".join("-" * l for l in largeurs))
     for ligne in lignes:
@@ -262,42 +394,48 @@ def affiche(lignes, K, n, tau_y, De_mm, L_mm, Do_mm, negligeable, gouvernant,
             f"{ligne['tau_paroi']:12.4g}",
             f"{ligne['bi_paroi']:11.3e}",
             f"{ligne['bi_visqueux']:11.3e}",
-            f"{ligne['part_du_seuil']:13.4%} ",
         ]))
 
-    if conique:
-        print("\n  A L'ENTREE DE BUSE, section la MOINS cisaillee, donc la"
-              " plus sensible au seuil\n")
-        entetes = ["v (mm/s)", "gamma_corr", "tau_paroi", "part du seuil",
-                   "verdict"]
-        largeurs = [9, 12, 12, 14, 18]
-        print("  " + "  ".join(e.rjust(l) for e, l in zip(entetes, largeurs)))
-        print("  " + "  ".join("-" * l for l in largeurs))
-        for ligne in lignes:
-            print("  " + "  ".join([
-                f"{ligne['v_mm_par_s']:9.1f}",
-                f"{ligne['gamma_corrige_entree']:12.4g}",
-                f"{ligne['tau_paroi_entree']:12.4g}",
-                f"{ligne['part_du_seuil_entree']:13.4%} ",
-                f"{ligne['verdict_entree']:>18}",
-            ]))
+    print("\n  PART DU SEUIL. C'est la PONDEREE qui decide, les deux autres"
+          " l'encadrent.\n")
+    entetes = ["v (mm/s)", "en sortie", "en entree", "maximum", "PONDEREE",
+               "dP au tiers sortie", "verdict"]
+    largeurs = [9, 11, 11, 11, 12, 19, 18]
+    print("  " + "  ".join(e.rjust(l) for e, l in zip(entetes, largeurs)))
+    print("  " + "  ".join("-" * l for l in largeurs))
+    for ligne in lignes:
+        print("  " + "  ".join([
+            f"{ligne['v_mm_par_s']:9.1f}",
+            f"{ligne['part_du_seuil']:10.4%} ",
+            f"{ligne['part_du_seuil_entree']:10.4%} ",
+            f"{ligne['part_du_seuil_maximale']:10.4%} ",
+            f"{ligne['part_du_seuil_ponderee']:11.4%} ",
+            f"{ligne['fraction_delta_P_cote_sortie']:18.2%} ",
+            f"{ligne['verdict']:>18}",
+        ]))
 
-    parts = [l["part_du_seuil"] for l in lignes]
-    parts_max = max(parts)
-    if conique:
-        parts_entree = [l["part_du_seuil_entree"] for l in lignes]
-        parts_max = max(parts_max, max(parts_entree))
+    if not conique:
+        print("\n  Buse cylindrique : la section est constante, donc la"
+              " ponderee, la sortie")
+        print("  et le maximum coincident. C'est le controle de coherence du"
+              " script.")
 
-    conclusion = verdict(parts_max, negligeable, gouvernant)
-    print("\n" + "=" * 78)
-    print(f"  Part du seuil, maximum sur toute la plage et toute la buse : "
-          f"{parts_max:.4%}")
+    ponderees = [l["part_du_seuil_ponderee"] for l in lignes]
+    ponderee_max = max(ponderees)
+    conclusion = verdict(ponderee_max, negligeable, gouvernant)
+
+    print("\n" + "=" * 84)
+    print(f"  Part du seuil PONDEREE, maximum sur la plage de vitesses : "
+          f"{ponderee_max:.4%}")
+    print(f"  Pour memoire, en sortie "
+          f"{max(l['part_du_seuil'] for l in lignes):.4%}, en entree "
+          f"{max(l['part_du_seuil_entree'] for l in lignes):.4%}")
     print(f"  VERDICT : {conclusion}")
-    print("=" * 78)
+    print("=" * 84)
     if conclusion == "seuil negligeable":
         print("  Traiter le materiau en LOI DE PUISSANCE PURE suffit. Negliger")
         print("  le seuil deplace la pression predite de moins de "
-              f"{parts_max:.4%}.")
+              f"{ponderee_max:.4%}.")
         print("  La phase 7 se reduit alors a l'extension conique, le")
         print("  defaut #7 restant sans effet mesurable sur ce materiau.")
     elif conclusion == "seuil marginal":
@@ -311,7 +449,7 @@ def affiche(lignes, K, n, tau_y, De_mm, L_mm, Do_mm, negligeable, gouvernant,
         print("  ce niveau : il faut la solution exacte de l'ecoulement")
         print("  Herschel-Bulkley en conduite, et ses equations de reference.")
     print()
-    print("  Rappel : la part du seuil est l'ecart exact entre un traitement a")
+    print("  Rappel : la part ponderee est l'ecart EXACT entre un traitement a")
     print("  seuil et un traitement en loi de puissance pure. L'erreur due au")
     print("  bouchon central, elle, n'est PAS calculee ici et est SUPPOSEE du")
     print("  meme ordre. Voir la docstring de ce module.")
